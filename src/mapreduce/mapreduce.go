@@ -11,6 +11,7 @@ import "net/rpc"
 import "net"
 import "bufio"
 import "hash/fnv"
+import "math"
 
 // import "os/exec"
 
@@ -64,6 +65,9 @@ type MapReduce struct {
   Workers map[string]*WorkerInfo
 
   // add any additional state here
+  jobs chan *DoJobArgs
+  doneJobs chan *DoJobArgs
+  idleChannel chan string
 }
 
 func InitMapReduce(nmap int, nreduce int,
@@ -79,6 +83,10 @@ func InitMapReduce(nmap int, nreduce int,
 
   // initialize any additional state here
   mr.Workers = make(map[string]*WorkerInfo)
+
+  mr.jobs = make(chan *DoJobArgs, int(math.Max(float64(nmap), float64(nreduce))))
+  mr.doneJobs = make(chan *DoJobArgs, int(math.Max(float64(nmap), float64(nreduce))))
+  mr.idleChannel = make(chan string)
 
   return mr
 }

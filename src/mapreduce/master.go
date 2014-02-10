@@ -4,20 +4,45 @@ import "fmt"
 
 type WorkerInfo struct {
   address string
-  mapDone chan bool
-  reduceDone chan bool
-  mapJobs *list.List
-  reduceJobs *list.List
 }
 
 func MakeWorkerInfo(address string) *WorkerInfo {
   w := new(WorkerInfo)
   w.address = address
-  w.mapDone = make(chan bool)
-  w.reduceDone = make(chan bool)
-  w.mapJobs = list.New()
-  w.reduceJobs = list.New()
   return w
+}
+
+func MakeDoJobArgs(file string, op JobType, job int, numOtherPhase int) *DoJobArgs{
+  args := &DoJobArgs{}
+  args.File = file
+  args.Operation = op
+  args.JobNumber = job
+  args.NumOtherPhase = numOtherPhase
+  return args
+}
+
+func (mr *MapReduce) DispatchJobs() {
+  for {
+    address := <- mr.idleChannel
+    w := mr.Workers[address]
+    args := <- mr.jobs
+
+    go mr.SendJob(w, args)
+  }
+}
+
+func (mr *MapReduce) SendJob(w *WorkerInfo, args *DoJobArgs) {
+  var reply DoJobReply
+  ok := call(w.address, "Worker.DoJob", args, &reply)
+  if ok {
+    // job completed
+    mr.doneJobs <- args
+    mr.idleChannel <- w.address
+  } else {
+    // job failed
+    mr.jobs <- args
+    fmt.Printf("RPC %s DoJob error\n", w.address)
+  }
 }
 
 // Clean up all workers by sending a Shutdown RPC to each one of them Collect
@@ -38,75 +63,43 @@ func (mr *MapReduce) KillWorkers() *list.List {
   return l
 }
 
+func (mr *MapReduce) RegisterWorkers() {
+  for {
+    worker := <- mr.registerChannel
+    mr.Workers[worker] = MakeWorkerInfo(worker)
+    mr.idleChannel <- worker
+    fmt.Println("Registerd worker: " + worker)
+  }
+}
+
 func (mr *MapReduce) RunMaster() *list.List {
   DPrintf("RunMaster %s\n", mr.MasterAddress)
 
-  var worker1, worker2 string
-  worker1 = <- mr.registerChannel
-  worker2 = <- mr.registerChannel
+  go mr.RegisterWorkers()
 
-  mr.Workers[worker1] = MakeWorkerInfo(worker1)
-  mr.Workers[worker2] = MakeWorkerInfo(worker2)
-
-  fmt.Println("sup", len(mr.Workers));
-
-  index := 0
-  for _, w := range mr.Workers {
-    for job := index; job < mr.nMap; job += len(mr.Workers) {
-      w.mapJobs.PushBack(job)
-    }
-    for job := index; job < mr.nReduce; job += len(mr.Workers)  {
-      w.reduceJobs.PushBack(job)
-    }
-    index++
+  // Assign map jobs
+  for job := 0; job < mr.nMap; job++ {
+    mr.jobs <- MakeDoJobArgs(mr.file, Map, job, mr.nReduce)
   }
 
-  for _, w := range mr.Workers {
-    go func(w *WorkerInfo) {
-      for e := w.mapJobs.Front(); e != nil; e = e.Next() {
-        args := &DoJobArgs{}
-        args.File = mr.file
-        args.Operation = Map
-        args.JobNumber = e.Value.(int)
-        args.NumOtherPhase = mr.nReduce
-        var reply DoJobReply
-        ok := call(w.address, "Worker.DoJob", args, &reply)
-        if ok == false {
-          fmt.Printf("RPC %s DoJob error\n", w.address)
-        }
-      }
+  go mr.DispatchJobs()
 
-      w.mapDone <- true
-    }(w)
+  // Wait for map jobs to complete
+  for job := 0; job < mr.nMap; job++ {
+    <- mr.doneJobs
   }
 
-  // Block until Map phase complete
-  for _, w := range mr.Workers {
-    <- w.mapDone
+  // Assign reduce jobs
+  for job := 0; job < mr.nReduce; job++ {
+    mr.jobs <- MakeDoJobArgs(mr.file, Reduce, job, mr.nMap)
   }
 
-  for _, w := range mr.Workers {
-    go func(w *WorkerInfo) {
-      for e := w.reduceJobs.Front(); e != nil; e = e.Next() {
-        args := &DoJobArgs{}
-        args.File = mr.file
-        args.Operation = Reduce
-        args.JobNumber = e.Value.(int)
-        args.NumOtherPhase = mr.nMap
-        var reply DoJobReply
-        ok := call(w.address, "Worker.DoJob", args, &reply)
-        if ok == false {
-          fmt.Printf("RPC %s DoJob error\n", w.address)
-        }
-      }
+  go mr.DispatchJobs()
 
-      w.reduceDone <- true
-    }(w)
+  // Wait for reduce jobs to complete
+  for job := 0; job < mr.nReduce; job++ {
+    <- mr.doneJobs
   }
 
-  // Block until Reduce phase complete
-  for _, w := range mr.Workers {
-    <- w.reduceDone
-  }
   return mr.KillWorkers()
 }
