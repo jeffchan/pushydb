@@ -63,11 +63,11 @@ type MapReduce struct {
 
   // Map of registered workers that you need to keep up to date
   Workers map[string]*WorkerInfo
+  idleChannel chan string
 
   // add any additional state here
   jobs chan *DoJobArgs
-  doneJobs chan *DoJobArgs
-  idleChannel chan string
+  doneJobs map[int](chan bool)
 }
 
 func InitMapReduce(nmap int, nreduce int,
@@ -83,10 +83,14 @@ func InitMapReduce(nmap int, nreduce int,
 
   // initialize any additional state here
   mr.Workers = make(map[string]*WorkerInfo)
-
-  mr.jobs = make(chan *DoJobArgs, int(math.Max(float64(nmap), float64(nreduce))))
-  mr.doneJobs = make(chan *DoJobArgs, int(math.Max(float64(nmap), float64(nreduce))))
   mr.idleChannel = make(chan string)
+
+  max := int(math.Max(float64(nmap), float64(nreduce)))
+  mr.jobs = make(chan *DoJobArgs, max)
+  mr.doneJobs = make(map[int](chan bool))
+  for job := 0; job < max; job++ {
+    mr.doneJobs[job] = make(chan bool)
+  }
 
   return mr
 }

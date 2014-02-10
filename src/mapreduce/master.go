@@ -23,11 +23,10 @@ func MakeDoJobArgs(file string, op JobType, job int, numOtherPhase int) *DoJobAr
 
 func (mr *MapReduce) DispatchJobs() {
   for {
+    // Wait for available worker and job
     address := <- mr.idleChannel
-    w := mr.Workers[address]
     args := <- mr.jobs
-
-    go mr.SendJob(w, args)
+    go mr.SendJob(mr.Workers[address], args)
   }
 }
 
@@ -35,11 +34,16 @@ func (mr *MapReduce) SendJob(w *WorkerInfo, args *DoJobArgs) {
   var reply DoJobReply
   ok := call(w.address, "Worker.DoJob", args, &reply)
   if ok {
-    // job completed
-    mr.doneJobs <- args
+    // Job completed
+    // Send to doneJobs channel in a goroutine because the channel
+    // is unbuffered. It'll block otherwise. Note that this means
+    // the ordering of sends will not be guaranteed, but that's ok
+    // Example: two workers complete the same job and try to send
+    // to the channel
+    go func() { mr.doneJobs[args.JobNumber] <- true }()
     mr.idleChannel <- w.address
   } else {
-    // job failed
+    // Job failed
     mr.jobs <- args
     fmt.Printf("RPC %s DoJob error\n", w.address)
   }
@@ -68,7 +72,7 @@ func (mr *MapReduce) RegisterWorkers() {
     worker := <- mr.registerChannel
     mr.Workers[worker] = MakeWorkerInfo(worker)
     mr.idleChannel <- worker
-    fmt.Println("Registerd worker: " + worker)
+    DPrintf("Registerd worker: " + worker)
   }
 }
 
@@ -76,17 +80,16 @@ func (mr *MapReduce) RunMaster() *list.List {
   DPrintf("RunMaster %s\n", mr.MasterAddress)
 
   go mr.RegisterWorkers()
+  go mr.DispatchJobs()
 
   // Assign map jobs
   for job := 0; job < mr.nMap; job++ {
     mr.jobs <- MakeDoJobArgs(mr.file, Map, job, mr.nReduce)
   }
 
-  go mr.DispatchJobs()
-
   // Wait for map jobs to complete
   for job := 0; job < mr.nMap; job++ {
-    <- mr.doneJobs
+    <- mr.doneJobs[job]
   }
 
   // Assign reduce jobs
@@ -94,11 +97,9 @@ func (mr *MapReduce) RunMaster() *list.List {
     mr.jobs <- MakeDoJobArgs(mr.file, Reduce, job, mr.nMap)
   }
 
-  go mr.DispatchJobs()
-
   // Wait for reduce jobs to complete
   for job := 0; job < mr.nReduce; job++ {
-    <- mr.doneJobs
+    <- mr.doneJobs[job]
   }
 
   return mr.KillWorkers()
