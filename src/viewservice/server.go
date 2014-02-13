@@ -38,18 +38,14 @@ func (vs *ViewServer) Ping(args *PingArgs, reply *PingReply) error {
   var newPing LastPing
   newPing.Viewnum = args.Viewnum
   newPing.Timestamp = time.Now()
+  newPing.Restart = false
 
   log.Println(address + " ping #" + strconv.Itoa(int(args.Viewnum)))
-  if ok {
-    if args.Viewnum == 0 && vs.view.Viewnum > 0 {
-      log.Println(" Signal restart")
-      newPing.Restart = true
-    } else {
-      newPing.Restart = false
-    }
-  } else {
-    newPing.Restart = false
+  if ok && args.Viewnum == 0 && vs.view.Viewnum > 0 {
+    log.Println("  Signal restart")
+    newPing.Restart = true
   }
+
   vs.lastPing[address] = &newPing
   reply.View = vs.view
 
