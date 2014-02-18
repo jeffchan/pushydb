@@ -41,7 +41,8 @@ func (vs *ViewServer) Ping(args *PingArgs, reply *PingReply) error {
   newPing.Restart = false
 
   log.Println(address + " ping #" + strconv.Itoa(int(args.Viewnum)))
-  if ok && args.Viewnum == 0 && vs.view.Viewnum > 0 {
+  if ok && args.Viewnum == 0 && vs.view.Viewnum > 0 &&
+     (address == vs.view.Primary || address == vs.view.Backup)  {
     log.Println("  Signal restart")
     newPing.Restart = true
   }
