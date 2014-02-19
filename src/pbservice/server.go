@@ -97,6 +97,8 @@ func (pb *PBServer) Put(args *PutArgs, reply *PutReply) error {
   pb.mu.Lock()
   defer pb.mu.Unlock()
 
+  pb.log("put %s", args.Key)
+
   if !pb.isPrimary() {
     pb.log("error: put to backup")
     reply.Err = ErrWrongServer
@@ -175,6 +177,8 @@ func (pb *PBServer) GetRelay(args *GetRelayArgs, reply *GetRelayReply) error {
 func (pb *PBServer) Get(args *GetArgs, reply *GetReply) error {
   pb.mu.Lock()
   defer pb.mu.Unlock()
+
+  pb.log("get %s", args.Key)
 
   if !pb.isPrimary() {
     pb.log("error: get request to backup")
