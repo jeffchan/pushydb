@@ -8,6 +8,7 @@ const (
   ErrWrongServer = "ErrWrongServer"
   ErrDupRequest = "ErrDupRequest"
   ErrOutOfSync = "ErrOutOfSync"
+  ErrBusy = "ErrBusy"
 )
 type Err string
 
@@ -53,11 +54,13 @@ type GetRelayReply struct {
 }
 
 type SyncArgs struct {
+  To string
 }
 
 type SyncReply struct {
   Table map[string]string
   Reqs map[string]string
+  Err Err
 }
 
 func hash(s string) uint32 {
