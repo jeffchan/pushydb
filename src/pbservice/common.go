@@ -6,6 +6,8 @@ const (
   OK = "OK"
   ErrNoKey = "ErrNoKey"
   ErrWrongServer = "ErrWrongServer"
+  ErrDupRequest = "ErrDupRequest"
+  ErrOutOfSync = "ErrOutOfSync"
 )
 type Err string
 
@@ -13,10 +15,7 @@ type PutArgs struct {
   Key string
   Value string
   DoHash bool // For PutHash
-  // You'll have to add definitions here.
-
-  // Field names must start with capital letters,
-  // otherwise RPC will break.
+  Id string
 }
 
 type PutReply struct {
@@ -24,9 +23,19 @@ type PutReply struct {
   PreviousValue string // For PutHash
 }
 
+type PutRelayArgs struct {
+  Key string
+  Value string
+  PreviousValue string
+}
+
+type PutRelayReply struct {
+  Err Err
+}
+
 type GetArgs struct {
   Key string
-  // You'll have to add definitions here.
+  Id string
 }
 
 type GetReply struct {
@@ -34,8 +43,22 @@ type GetReply struct {
   Value string
 }
 
+type GetRelayArgs struct {
+  Key string
+  Value string
+}
 
-// Your RPC definitions here.
+type GetRelayReply struct {
+  Err Err
+}
+
+type SyncArgs struct {
+}
+
+type SyncReply struct {
+  Table map[string]string
+  Reqs map[string]string
+}
 
 func hash(s string) uint32 {
   h := fnv.New32a()

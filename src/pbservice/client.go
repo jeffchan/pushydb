@@ -3,28 +3,31 @@ package pbservice
 import "viewservice"
 import "net/rpc"
 import "fmt"
+import "time"
+import "crypto/rand"
+import "math/big"
+import "strconv"
 
-// You'll probably need to uncomment these:
-// import "time"
-// import "crypto/rand"
-// import "math/big"
-
-
+func nrand() int64 {
+  max := big.NewInt(int64(1) << 62)
+  bigx, _ := rand.Int(rand.Reader, max)
+  x := bigx.Int64()
+  return x
+}
 
 type Clerk struct {
   vs *viewservice.Clerk
-  // Your declarations here
+  id int64
+  counter uint
 }
-
 
 func MakeClerk(vshost string, me string) *Clerk {
   ck := new(Clerk)
   ck.vs = viewservice.MakeClerk(me, vshost)
-  // Your ck.* initializations here
-
+  ck.id = nrand()
+  ck.counter = 0
   return ck
 }
-
 
 //
 // call() sends an RPC to the rpcname handler on server srv
@@ -49,7 +52,7 @@ func call(srv string, rpcname string,
     return false
   }
   defer c.Close()
-    
+
   err := c.Call(rpcname, args, reply)
   if err == nil {
     return true
@@ -57,6 +60,20 @@ func call(srv string, rpcname string,
 
   fmt.Println(err)
   return false
+}
+
+func (ck *Clerk) reqId() string {
+  ck.counter++
+  return strconv.Itoa(int(ck.id)) + strconv.Itoa(int(ck.counter))
+}
+
+// Retry until valid primary
+func (ck *Clerk) getPrimary() string {
+  view,_ := ck.vs.Get()
+  for view.Primary == "" {
+    view,_ = ck.vs.Get()
+  }
+  return view.Primary
 }
 
 //
@@ -67,10 +84,29 @@ func call(srv string, rpcname string,
 // says the key doesn't exist (has never been Put().
 //
 func (ck *Clerk) Get(key string) string {
+  primary := ck.getPrimary()
+  id := ck.reqId()
 
-  // Your code here.
+  var reply GetReply
+  args := GetArgs{key, id}
 
-  return "???"
+  for {
+    // fmt.Println("calling get " + primary)
+    ok := call(primary, "PBServer.Get", &args, &reply)
+    err := reply.Err
+
+    if !ok || err == ErrWrongServer {
+      primary = ck.getPrimary()
+    }
+
+    if err == OK || err == ErrDupRequest {
+      return reply.Value
+    } else if err == ErrNoKey {
+      return ""
+    }
+
+    time.Sleep(viewservice.PingInterval)
+  }
 }
 
 //
@@ -78,9 +114,27 @@ func (ck *Clerk) Get(key string) string {
 // must keep trying until it succeeds.
 //
 func (ck *Clerk) PutExt(key string, value string, dohash bool) string {
+  primary := ck.getPrimary()
+  id := ck.reqId()
 
-  // Your code here.
-  return "???"
+  var reply PutReply
+  args := PutArgs{key, value, dohash, id}
+
+  for {
+    // fmt.Println("calling put " + primary)
+    ok := call(primary, "PBServer.Put", &args, &reply)
+    err := reply.Err
+
+    if !ok || err == ErrWrongServer {
+      primary = ck.getPrimary()
+    }
+
+    if err == OK || err == ErrDupRequest {
+      return reply.PreviousValue
+    }
+
+    time.Sleep(viewservice.PingInterval)
+  }
 }
 
 func (ck *Clerk) Put(key string, value string) {
