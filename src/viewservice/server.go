@@ -7,7 +7,6 @@ import "log"
 import "time"
 import "sync"
 import "os"
-import "strconv"
 
 type ViewServer struct {
   mu sync.Mutex
@@ -40,10 +39,9 @@ func (vs *ViewServer) Ping(args *PingArgs, reply *PingReply) error {
   newPing.Timestamp = time.Now()
   newPing.Restart = false
 
-  log.Println(address + " ping #" + strconv.Itoa(int(args.Viewnum)))
-  if ok && args.Viewnum == 0 && vs.view.Viewnum > 0 &&
+  if ok && args.Viewnum == 0 && vs.view.Viewnum > 1 &&
      (address == vs.view.Primary || address == vs.view.Backup)  {
-    log.Println("  Signal restart")
+    log.Println(address + " -> Signal restart")
     newPing.Restart = true
   }
 
