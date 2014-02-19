@@ -17,7 +17,7 @@ const Debug = 0
 
 func DPrintf(format string, a ...interface{}) (n int, err error) {
   if Debug > 0 {
-    n, err = fmt.Printf(format + "\n", a...)
+    n, err = fmt.Printf(format, a...)
   }
   return
 }
@@ -38,6 +38,23 @@ type PBServer struct {
   stateTransfer chan bool
 }
 
+func (pb *PBServer) shortAddr() string {
+  name := pb.me[:10]
+  if pb.isPrimary() {
+    return "P " + name
+  } else {
+    return "B " + name
+  }
+}
+
+const Log = true
+func (pb *PBServer) log(format string, a ...interface{}) (n int, err error) {
+  if Log {
+    n, err = fmt.Printf(pb.shortAddr() + ": " + format + "\n", a...)
+  }
+  return
+}
+
 func (pb *PBServer) Sync(args *SyncArgs, reply *SyncReply) error {
   // pb.mu.Lock()
   // defer pb.mu.Unlock()
@@ -55,6 +72,7 @@ func (pb *PBServer) PutRelay(args *PutRelayArgs, reply *PutRelayReply) error {
   defer pb.mu.Unlock()
 
   if pb.isPrimary() {
+    pb.log("error: put relay to primary")
     reply.Err = ErrWrongServer
     return nil
   }
@@ -80,6 +98,7 @@ func (pb *PBServer) Put(args *PutArgs, reply *PutReply) error {
   defer pb.mu.Unlock()
 
   if !pb.isPrimary() {
+    pb.log("error: put to backup")
     reply.Err = ErrWrongServer
     return nil
   }
@@ -87,6 +106,7 @@ func (pb *PBServer) Put(args *PutArgs, reply *PutReply) error {
   // filter duplicates
   dup, ok := pb.reqs[args.Id]
   if ok {
+    pb.log("error: dup request id %s", args.Id)
     reply.Err = ErrDupRequest
     reply.PreviousValue = dup
     return nil
@@ -110,6 +130,7 @@ func (pb *PBServer) Put(args *PutArgs, reply *PutReply) error {
     relayArgs := PutRelayArgs{args.Key, pb.table[args.Key], old}
     ok = call(pb.view.Backup, "PBServer.PutRelay", &relayArgs, &relayReply)
     if !ok || relayReply.Err != OK {
+      pb.log("error: no response from putrelay")
       reply.Err = relayReply.Err
       return nil
     }
@@ -127,6 +148,7 @@ func (pb *PBServer) GetRelay(args *GetRelayArgs, reply *GetRelayReply) error {
   defer pb.mu.Unlock()
 
   if pb.isPrimary() {
+    pb.log("error: get relay to primary")
     reply.Err = ErrWrongServer
     return nil
   }
@@ -137,7 +159,11 @@ func (pb *PBServer) GetRelay(args *GetRelayArgs, reply *GetRelayReply) error {
   // }
 
   val,ok := pb.table[args.Key]
-  if !ok || val != args.Value {
+  if !ok {
+    pb.log("error: key %s does not exist", args.Key)
+    reply.Err = ErrOutOfSync
+  } else if val != args.Value {
+    pb.log("error: val does not match. primary: %s vs backup: %s", args.Value, val)
     reply.Err = ErrOutOfSync
   } else {
     reply.Err = OK
@@ -151,6 +177,7 @@ func (pb *PBServer) Get(args *GetArgs, reply *GetReply) error {
   defer pb.mu.Unlock()
 
   if !pb.isPrimary() {
+    pb.log("error: get request to backup")
     reply.Err = ErrWrongServer
     return nil
   }
@@ -158,6 +185,7 @@ func (pb *PBServer) Get(args *GetArgs, reply *GetReply) error {
   // filter duplicates
   dup, ok := pb.reqs[args.Id]
   if ok {
+    pb.log("error: dup request id %s", args.Id)
     reply.Err = ErrDupRequest
     reply.Value = dup
     return nil
@@ -165,6 +193,7 @@ func (pb *PBServer) Get(args *GetArgs, reply *GetReply) error {
 
   val, ok := pb.table[args.Key]
   if !ok {
+    pb.log("error: key %s does not exist", args.Key)
     reply.Err = ErrNoKey
     return nil
   }
@@ -176,6 +205,7 @@ func (pb *PBServer) Get(args *GetArgs, reply *GetReply) error {
     relayArgs := GetRelayArgs{args.Key, val}
     ok = call(pb.view.Backup, "PBServer.GetRelay", &relayArgs, &relayReply)
     if !ok || relayReply.Err != OK {
+      pb.log("error: no response from getrelay")
       reply.Err = relayReply.Err
       return nil
     }
@@ -216,6 +246,8 @@ func (pb *PBServer) tick() {
 
   if (view.Viewnum - old.Viewnum) == 1 &&
      old.Backup != view.Backup && old.Backup != pb.me {
+    pb.log("New backup online in viewnum #%d", view.Viewnum)
+
     if pb.isBackup() {
       var reply SyncReply
       call(view.Primary, "PBServer.Sync", &SyncArgs{}, &reply)
@@ -223,7 +255,9 @@ func (pb *PBServer) tick() {
       pb.reqs = reply.Reqs
       // TODO check call result
     } else if pb.isPrimary() {
+      pb.log("Waiting for state transfer")
       <- pb.stateTransfer
+      pb.log("State transfer complete")
     }
   }
 }
