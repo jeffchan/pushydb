@@ -43,12 +43,14 @@ func (pb *PBServer) shortAddr() string {
   name := pb.me[17:]
   if pb.isPrimary() {
     return "P " + name
-  } else {
+  } else if pb.isBackup() {
     return "B " + name
+  } else {
+    return "X"
   }
 }
 
-const Log = true
+const Log = false
 func (pb *PBServer) log(format string, a ...interface{}) (n int, err error) {
   if Log {
     n, err = fmt.Printf(pb.shortAddr() + ": " + format + "\n", a...)
@@ -57,8 +59,15 @@ func (pb *PBServer) log(format string, a ...interface{}) (n int, err error) {
 }
 
 func (pb *PBServer) Sync(args *SyncArgs, reply *SyncReply) error {
-  // pb.mu.Lock()
-  // defer pb.mu.Unlock()
+  pb.mu.Lock()
+  defer pb.mu.Unlock()
+
+  if !pb.isPrimary() {
+    pb.log("error: Sync from not primary")
+    reply.Err = ErrOutOfSync
+    return nil
+  }
+
   if args.To != pb.view.Backup {
     pb.log("error: Sync from %s, expecting %s", args.To, pb.view.Backup)
     reply.Err = ErrOutOfSync
@@ -66,13 +75,16 @@ func (pb *PBServer) Sync(args *SyncArgs, reply *SyncReply) error {
   }
 
   if pb.table == nil {
-    pb.log("NIL TABLE")
+    pb.log("error: NIL TABLE")
+    reply.Err = ErrOutOfSync
+    return nil
   }
+
   reply.Table = pb.table
   reply.Reqs = pb.reqs
   reply.Err = OK
 
-  pb.stateTransfer <- true
+  pb.sync = false
 
   return nil
 }
@@ -80,7 +92,7 @@ func (pb *PBServer) Sync(args *SyncArgs, reply *SyncReply) error {
 func (pb *PBServer) PutRelay(args *PutRelayArgs, reply *PutRelayReply) error {
 
   if pb.sync {
-    pb.log("error: busy syncing")
+    pb.log("error: busy syncing, reject put relay")
     reply.Err = ErrBusy
     return nil
   }
@@ -94,11 +106,6 @@ func (pb *PBServer) PutRelay(args *PutRelayArgs, reply *PutRelayReply) error {
     return nil
   }
 
-  // if !pb.isSynced() {
-  //   reply.Err = ErrOutOfSync
-  //   return nil
-  // }
-
   // val,_ := pb.table[args.Key]
   // if val != args.PreviousValue {
   //   reply.Err = ErrOutOfSync
@@ -111,11 +118,17 @@ func (pb *PBServer) PutRelay(args *PutRelayArgs, reply *PutRelayReply) error {
 }
 
 func (pb *PBServer) Put(args *PutArgs, reply *PutReply) error {
+  if pb.sync {
+    pb.log("error: busy syncing, reject put")
+    reply.Err = ErrBusy
+    return nil
+  }
+
   pb.mu.Lock()
   defer pb.mu.Unlock()
 
-  pb.log("put %s", args.Key)
-  defer pb.log("put %s done", args.Key)
+  pb.log("put %s (%s)", args.Key, args.Id)
+  defer pb.log("put %s exit", args.Key)
 
   if !pb.isPrimary() {
     pb.log("error: put to backup")
@@ -132,23 +145,23 @@ func (pb *PBServer) Put(args *PutArgs, reply *PutReply) error {
     return nil
   }
 
-  old, ok := pb.table[args.Key]
+  oldval, ok := pb.table[args.Key]
   if !ok {
-    old = ""
+    oldval = ""
   }
 
+  var newval string
   if args.DoHash {
-    pb.table[args.Key] = strconv.Itoa(int(hash(old + args.Value)))
+    newval = strconv.Itoa(int(hash(oldval + args.Value)))
   } else {
-    pb.table[args.Key] = args.Value
+    newval = args.Value
   }
 
+  // call backup (if backup exists)
   if pb.hasBackup() {
     pb.log("forward to backup %s", pb.view.Backup)
-    // call backup (if backup exists)
-    // block until we get an ok
     var relayReply PutRelayReply
-    relayArgs := PutRelayArgs{args.Key, pb.table[args.Key], old}
+    relayArgs := PutRelayArgs{args.Key, newval, oldval}
     ok = call(pb.view.Backup, "PBServer.PutRelay", &relayArgs, &relayReply)
     if !ok || relayReply.Err != OK {
       pb.log("error: no response from putrelay")
@@ -158,16 +171,19 @@ func (pb *PBServer) Put(args *PutArgs, reply *PutReply) error {
     pb.log("forward to backup %s done", pb.view.Backup)
   }
 
-  reply.PreviousValue = old
+  reply.PreviousValue = oldval
   reply.Err = OK
-  pb.reqs[args.Id] = old
+  pb.table[args.Key] = newval
+  pb.reqs[args.Id] = oldval
+
+  pb.log("put k: %s, v: %s, prev: %s", args.Key, newval, oldval)
 
   return nil
 }
 
 func (pb *PBServer) GetRelay(args *GetRelayArgs, reply *GetRelayReply) error {
   if pb.sync {
-    pb.log("error: busy syncing")
+    pb.log("error: busy syncing, reject get relay")
     reply.Err = ErrBusy
     return nil
   }
@@ -180,11 +196,6 @@ func (pb *PBServer) GetRelay(args *GetRelayArgs, reply *GetRelayReply) error {
     reply.Err = ErrWrongServer
     return nil
   }
-
-  // if !pb.isSynced() {
-  //   reply.Err = ErrOutOfSync
-  //   return nil
-  // }
 
   val,ok := pb.table[args.Key]
   if !ok {
@@ -201,11 +212,17 @@ func (pb *PBServer) GetRelay(args *GetRelayArgs, reply *GetRelayReply) error {
 }
 
 func (pb *PBServer) Get(args *GetArgs, reply *GetReply) error {
+  if pb.sync {
+    pb.log("error: busy syncing, reject get")
+    reply.Err = ErrBusy
+    return nil
+  }
+
   pb.mu.Lock()
   defer pb.mu.Unlock()
 
-  pb.log("get %s", args.Key)
-  defer pb.log("get %s done", args.Key)
+  pb.log("get %s (%s)", args.Key, args.Id)
+  defer pb.log("get %s exit", args.Key)
 
   if !pb.isPrimary() {
     pb.log("error: get request to backup")
@@ -229,10 +246,9 @@ func (pb *PBServer) Get(args *GetArgs, reply *GetReply) error {
     return nil
   }
 
+  // call backup (if backup exists)
   if pb.hasBackup() {
     pb.log("forward to backup %s", pb.view.Backup)
-    // call backup (if backup exists)
-    // block until we get an ok
     var relayReply GetRelayReply
     relayArgs := GetRelayArgs{args.Key, val}
     ok = call(pb.view.Backup, "PBServer.GetRelay", &relayArgs, &relayReply)
@@ -267,10 +283,6 @@ func (pb *PBServer) hasBackup() bool {
   return pb.isPrimary() && pb.view.Backup != ""
 }
 
-func (pb *PBServer) isSynced() bool {
-  return len(pb.table) > 0
-}
-
 // ping the viewserver periodically.
 func (pb *PBServer) tick() {
   pb.mu.Lock()
@@ -283,29 +295,37 @@ func (pb *PBServer) tick() {
 
   if !pb.inView() { return }
 
+  if (view.Viewnum - old.Viewnum) == 1 {
+    pb.log("New view #%d, P: %s, B: %s", view.Viewnum, view.Primary, view.Backup)
+  }
+
   if (view.Viewnum - old.Viewnum) == 1 &&
-     old.Backup != view.Backup && old.Backup != pb.me {
+    old.Backup != view.Backup && old.Backup != pb.me {
+
     pb.log("New backup %s online in viewnum #%d", view.Backup, view.Viewnum)
 
+    pb.sync = true
+
     if pb.isBackup() {
-      pb.sync = true
-      var reply SyncReply
-      pb.log("Syncing from %s", view.Primary)
-      for {
-        ok := call(view.Primary, "PBServer.Sync", &SyncArgs{pb.me}, &reply)
-        if ok && reply.Err == OK {
-          break
+      go func() {
+        pb.mu.Lock()
+        defer pb.mu.Unlock()
+
+        var reply SyncReply
+        for {
+          pb.log("Syncing from %s", view.Primary)
+          ok := call(view.Primary, "PBServer.Sync", &SyncArgs{pb.me}, &reply)
+          if ok && reply.Err == OK {
+            pb.table = reply.Table
+            pb.reqs = reply.Reqs
+            pb.sync = false
+            pb.log("Synced to table of size %d", len(pb.table))
+            break
+          }
+          time.Sleep(viewservice.PingInterval)
         }
-      }
-      pb.table = reply.Table
-      pb.reqs = reply.Reqs
-      // TODO check call result
-      pb.log("Synced to table of size %d", len(pb.table))
-      pb.sync = false
-    } else if pb.isPrimary() {
-      pb.log("Waiting for state transfer")
-      <- pb.stateTransfer
-      pb.log("State transfer complete")
+
+      }()
     }
   }
 }
