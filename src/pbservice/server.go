@@ -50,7 +50,7 @@ func (pb *PBServer) shortAddr() string {
   }
 }
 
-const Log = true
+const Log = false
 func (pb *PBServer) log(format string, a ...interface{}) (n int, err error) {
   if Log {
     n, err = fmt.Printf(pb.shortAddr() + ": " + format + "\n", a...)
