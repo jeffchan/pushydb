@@ -50,7 +50,7 @@ func (pb *PBServer) shortAddr() string {
   }
 }
 
-const Log = false
+const Log = true
 func (pb *PBServer) log(format string, a ...interface{}) (n int, err error) {
   if Log {
     n, err = fmt.Printf(pb.shortAddr() + ": " + format + "\n", a...)
@@ -111,6 +111,7 @@ func (pb *PBServer) PutRelay(args *PutRelayArgs, reply *PutRelayReply) error {
   //   reply.Err = ErrOutOfSync
   // } else {
     pb.table[args.Key] = args.Value
+    pb.reqs[args.Id] = args.PreviousValue
     reply.Err = OK
   // }
 
@@ -161,7 +162,7 @@ func (pb *PBServer) Put(args *PutArgs, reply *PutReply) error {
   if pb.hasBackup() {
     pb.log("forward to backup %s", pb.view.Backup)
     var relayReply PutRelayReply
-    relayArgs := PutRelayArgs{args.Key, newval, oldval}
+    relayArgs := PutRelayArgs{args.Key, newval, oldval, args.Id}
     ok = call(pb.view.Backup, "PBServer.PutRelay", &relayArgs, &relayReply)
     if !ok || relayReply.Err != OK {
       pb.log("error: no response from putrelay")
@@ -205,6 +206,7 @@ func (pb *PBServer) GetRelay(args *GetRelayArgs, reply *GetRelayReply) error {
     pb.log("error: val does not match. primary: %s vs backup: %s", args.Value, val)
     reply.Err = ErrOutOfSync
   } else {
+    pb.reqs[args.Id] = val
     reply.Err = OK
   }
 
@@ -250,7 +252,7 @@ func (pb *PBServer) Get(args *GetArgs, reply *GetReply) error {
   if pb.hasBackup() {
     pb.log("forward to backup %s", pb.view.Backup)
     var relayReply GetRelayReply
-    relayArgs := GetRelayArgs{args.Key, val}
+    relayArgs := GetRelayArgs{args.Key, val, args.Id}
     ok = call(pb.view.Backup, "PBServer.GetRelay", &relayArgs, &relayReply)
     if !ok || relayReply.Err != OK {
       pb.log("error: no response from getrelay")

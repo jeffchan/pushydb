@@ -7,6 +7,7 @@ import "time"
 import "crypto/rand"
 import "math/big"
 import "strconv"
+import "sync"
 
 func nrand() int64 {
   max := big.NewInt(int64(1) << 62)
@@ -19,6 +20,7 @@ type Clerk struct {
   vs *viewservice.Clerk
   id int64
   counter uint
+  mu sync.Mutex
 }
 
 func MakeClerk(vshost string, me string) *Clerk {
@@ -63,8 +65,10 @@ func call(srv string, rpcname string,
 }
 
 func (ck *Clerk) reqId() string {
+  ck.mu.Lock()
+  defer ck.mu.Unlock()
   ck.counter++
-  return strconv.Itoa(int(ck.id)) + strconv.Itoa(int(ck.counter))
+  return strconv.Itoa(int(ck.id)) + ":" + strconv.Itoa(int(ck.counter))
 }
 
 // Retry until valid primary

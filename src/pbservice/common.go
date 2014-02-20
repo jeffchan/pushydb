@@ -28,6 +28,7 @@ type PutRelayArgs struct {
   Key string
   Value string
   PreviousValue string
+  Id string
 }
 
 type PutRelayReply struct {
@@ -47,6 +48,7 @@ type GetReply struct {
 type GetRelayArgs struct {
   Key string
   Value string
+  Id string
 }
 
 type GetRelayReply struct {
