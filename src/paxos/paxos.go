@@ -28,7 +28,13 @@ import "syscall"
 import "sync"
 import "fmt"
 import "math/rand"
+import "time"
+import "math"
 
+const (
+  PingInterval = time.Millisecond * 100
+  Log = false
+)
 
 type Paxos struct {
   mu sync.Mutex
@@ -38,9 +44,172 @@ type Paxos struct {
   rpcCount int
   peers []string
   me int // index into peers[]
+  addr string
+  majority int
 
+  log map[int]*Instance
+  highestDone int
+  highestDoneAll int
+}
 
-  // Your data here.
+type Instance struct {
+  seq int
+  decidedVal interface{}
+
+  // Acceptor's state
+  prepareN int64
+  acceptedN int64
+  acceptedVal interface{}
+}
+
+func (px *Paxos) n() int64 {
+  return time.Now().Unix() * int64(len(px.peers)) + int64(px.me)
+}
+
+func (px *Paxos) x(format string, a ...interface{}) (n int, err error) {
+  if Log {
+    n, err = fmt.Printf(px.shortAddr() + ": " + format + "\n", a...)
+  }
+  return
+}
+
+func (px *Paxos) shortAddr() string {
+  name := px.addr[17:]
+  return name
+}
+
+func (px *Paxos) Propose(seq int, val interface{}) {
+  it := px.getInstance(seq)
+  for it.decidedVal == nil && !px.dead {
+    n := px.n()
+    var maxN int64
+    var maxVal interface{}
+    count := 0
+    for _,srv := range px.peers {
+      args := PrepareArgs{seq, n}
+      var reply PrepareReply
+      reply.Seq = seq
+      ok := px.call(srv, "Prepare", &args, &reply)
+      if ok && reply.Err == OK {
+        if reply.N >= maxN {
+          maxN = reply.N
+          maxVal = reply.Val
+        }
+        count++
+      }
+    }
+
+    if count >= px.majority {
+      if maxVal == nil {
+        maxVal = val
+      }
+    } else {
+      continue
+    }
+
+    px.x("seq %d, prepare count %d, majority %d, maxN %d, maxVal %s", seq, count, px.majority, maxN, maxVal)
+
+    acceptCount := 0
+    for _,srv := range px.peers {
+      args := AcceptArgs{seq, n, maxVal}
+      var reply AcceptReply
+      reply.Seq = seq
+      ok := px.call(srv, "Accept", &args, &reply)
+      if ok && reply.Err == OK {
+        acceptCount++
+      }
+    }
+    px.x("seq %d, accept count %d, majority %d", seq, acceptCount, px.majority)
+    if acceptCount >= px.majority {
+      min := math.MaxInt32
+      allCount := 0
+      for _,srv := range px.peers {
+        args := DecidedArgs{seq, maxVal}
+        var reply DecidedReply
+        reply.Seq = seq
+        ok := px.call(srv, "Decided", &args, &reply)
+        if ok && reply.HighestDoneSeq != -1 {
+          if reply.HighestDoneSeq < min {
+            min = reply.HighestDoneSeq
+          }
+          allCount++
+        }
+      }
+
+      if allCount == len(px.peers) {
+        px.highestDoneAll = min
+        for key,_ := range px.log {
+          if key <= min {
+            delete(px.log, key)
+          }
+        }
+      }
+    }
+    time.Sleep(PingInterval)
+  }
+}
+
+// Acceptor's prepare handler
+func (px *Paxos) Prepare(args *PrepareArgs, reply *PrepareReply) error {
+  it := px.getInstance(args.Seq)
+  if args.N > it.prepareN {
+    it.prepareN = args.N
+    reply.Err = OK
+    reply.HighestDoneSeq = px.highestDone // piggyback
+    if it.acceptedN != -1 {
+      reply.N = it.acceptedN
+      reply.Val = it.acceptedVal
+      px.x("preparereply val %s, for N %d", reply.Val, args.N)
+    }
+  } else {
+    reply.Err = Reject
+  }
+  return nil
+}
+
+// Acceptor's accept handler
+func (px *Paxos) Accept(args *AcceptArgs, reply *AcceptReply) error {
+  it := px.getInstance(args.Seq)
+  px.x("accept arg N %d, to highest N %d", args.N, it.prepareN)
+  if args.N >= it.prepareN {
+    it.prepareN = args.N
+    it.acceptedN = args.N
+    it.acceptedVal = args.Val
+
+    reply.Err = OK
+    reply.N = args.N
+    reply.HighestDoneSeq = px.highestDone // piggyback
+  } else {
+    reply.Err = Reject
+  }
+  return nil
+}
+
+// Acceptor's decided handler
+func (px *Paxos) Decided(args *DecidedArgs, reply *DecidedReply) error {
+  it := px.getInstance(args.Seq)
+  it.decidedVal = args.Val
+  px.x("seq %d decided = %s", args.Seq, args.Val)
+
+  reply.Err = OK
+  reply.HighestDoneSeq = px.highestDone // piggyback
+  return nil
+}
+
+func (px *Paxos) call(srv string, name string, args interface{}, reply interface{}) bool {
+  if srv == px.addr {
+    if name == "Prepare" {
+      px.Prepare(args.(*PrepareArgs), reply.(*PrepareReply))
+    } else if name == "Accept" {
+      px.Accept(args.(*AcceptArgs), reply.(*AcceptReply))
+    } else if name == "Decided" {
+      px.Decided(args.(*DecidedArgs), reply.(*DecidedReply))
+    } else {
+    }
+    return true
+  } else {
+    return call(srv, "Paxos."+name, args, reply)
+  }
 }
 
 //
@@ -79,6 +248,27 @@ func call(srv string, name string, args interface{}, reply interface{}) bool {
   return false
 }
 
+func MakeInstance(seq int) *Instance {
+  it := new(Instance)
+  it.seq = seq
+
+  // defaults
+  it.decidedVal = nil
+
+  it.prepareN = -1
+  it.acceptedN = -1
+  it.acceptedVal = nil
+
+  return it
+}
+
+func (px *Paxos) getInstance(seq int) *Instance {
+  _,ok := px.log[seq]
+  if !ok {
+    px.log[seq] = MakeInstance(seq)
+  }
+  return px.log[seq]
+}
 
 //
 // the application wants paxos to start agreement on
@@ -88,7 +278,13 @@ func call(srv string, name string, args interface{}, reply interface{}) bool {
 // is reached.
 //
 func (px *Paxos) Start(seq int, v interface{}) {
-  // Your code here.
+  // If Start() is called with a sequence number less than Min(),
+  // the Start() call should be ignored.
+  if seq < px.Min() {
+    return
+  }
+
+  go px.Propose(seq, v)
 }
 
 //
@@ -98,7 +294,9 @@ func (px *Paxos) Start(seq int, v interface{}) {
 // see the comments for Min() for more explanation.
 //
 func (px *Paxos) Done(seq int) {
-  // Your code here.
+  if seq > px.highestDone {
+    px.highestDone = seq
+  }
 }
 
 //
@@ -107,8 +305,13 @@ func (px *Paxos) Done(seq int) {
 // this peer.
 //
 func (px *Paxos) Max() int {
-  // Your code here.
-  return 0
+  maxKey := 0
+  for key,_ := range px.log {
+    if key > maxKey {
+      maxKey = key
+    }
+  }
+  return maxKey
 }
 
 //
@@ -140,8 +343,7 @@ func (px *Paxos) Max() int {
 // instances.
 //
 func (px *Paxos) Min() int {
-  // You code here.
-  return 0
+  return px.highestDoneAll + 1
 }
 
 //
@@ -152,8 +354,17 @@ func (px *Paxos) Min() int {
 // it should not contact other Paxos peers.
 //
 func (px *Paxos) Status(seq int) (bool, interface{}) {
-  // Your code here.
-  return false, nil
+  // If Status() is called with a sequence number less than Min(),
+  // Status() should return false (indicating no agreement).
+  if seq < px.Min() {
+    return false, nil
+  }
+
+  it := px.getInstance(seq)
+  if it.decidedVal == nil {
+    return false, nil
+  }
+  return true, it.decidedVal
 }
 
 
@@ -178,9 +389,12 @@ func Make(peers []string, me int, rpcs *rpc.Server) *Paxos {
   px := &Paxos{}
   px.peers = peers
   px.me = me
+  px.addr = peers[me]
+  px.majority = (len(peers) / 2) + 1
+  px.highestDone = -1
+  px.highestDoneAll = -1
 
-
-  // Your initialization code here.
+  px.log = make(map[int]*Instance)
 
   if rpcs != nil {
     // caller will create socket &c
