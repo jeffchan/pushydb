@@ -84,7 +84,7 @@ func (px *Paxos) Propose(seq int, val interface{}) {
     n := px.n()
     var maxN int64
     var maxVal interface{}
-    count := 0
+    prepareCount := 0
     for _,srv := range px.peers {
       args := PrepareArgs{seq, n}
       var reply PrepareReply
@@ -95,11 +95,13 @@ func (px *Paxos) Propose(seq int, val interface{}) {
           maxN = reply.N
           maxVal = reply.Val
         }
-        count++
+        prepareCount++
       }
     }
 
-    if count >= px.majority {
+    // Only continue if majority prepare_ok
+    if prepareCount >= px.majority {
+      // Set value if none given
       if maxVal == nil {
         maxVal = val
       }
