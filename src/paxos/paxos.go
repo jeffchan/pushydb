@@ -107,8 +107,6 @@ func (px *Paxos) Propose(seq int, val interface{}) {
       continue
     }
 
-    px.x("seq %d, prepare count %d, majority %d, maxN %d, maxVal %s", seq, count, px.majority, maxN, maxVal)
-
     acceptCount := 0
     for _,srv := range px.peers {
       args := AcceptArgs{seq, n, maxVal}
@@ -119,7 +117,7 @@ func (px *Paxos) Propose(seq int, val interface{}) {
         acceptCount++
       }
     }
-    px.x("seq %d, accept count %d, majority %d", seq, acceptCount, px.majority)
+
     if acceptCount >= px.majority {
       min := math.MaxInt32
       allCount := 0
@@ -162,7 +160,6 @@ func (px *Paxos) Prepare(args *PrepareArgs, reply *PrepareReply) error {
     if it.acceptedN != -1 {
       reply.N = it.acceptedN
       reply.Val = it.acceptedVal
-      px.x("preparereply val %s, for N %d", reply.Val, args.N)
     }
   } else {
     reply.Err = Reject
@@ -173,7 +170,6 @@ func (px *Paxos) Prepare(args *PrepareArgs, reply *PrepareReply) error {
 // Acceptor's accept handler
 func (px *Paxos) Accept(args *AcceptArgs, reply *AcceptReply) error {
   it := px.getInstance(args.Seq)
-  px.x("accept arg N %d, to highest N %d", args.N, it.prepareN)
   if args.N >= it.prepareN {
     it.prepareN = args.N
     it.acceptedN = args.N
@@ -192,7 +188,6 @@ func (px *Paxos) Accept(args *AcceptArgs, reply *AcceptReply) error {
 func (px *Paxos) Decided(args *DecidedArgs, reply *DecidedReply) error {
   it := px.getInstance(args.Seq)
   it.decidedVal = args.Val
-  px.x("seq %d decided = %s", args.Seq, args.Val)
 
   reply.Err = OK
   reply.HighestDoneSeq = px.highestDone // piggyback
