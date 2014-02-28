@@ -211,6 +211,7 @@ func (px *Paxos) call(srv string, name string, args interface{}, reply interface
     } else if name == "Decided" {
       px.Decided(args.(*DecidedArgs), reply.(*DecidedReply))
     } else {
+      return false
     }
     return true
   } else {
