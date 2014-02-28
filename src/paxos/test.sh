@@ -1,4 +1,8 @@
-for i in $(seq 1 20);
+#!/bin/bash
+
+trap "echo Exited!; exit;" SIGINT SIGTERM
+
+for i in $(seq 0 20);
 do
-	 go test 2>/dev/null | egrep -v 'EOF|connection|broken|connected'
+	 go test $1 2>/dev/null | egrep -v 'EOF|files|connection|broken|connected' > $i.log &
 done
