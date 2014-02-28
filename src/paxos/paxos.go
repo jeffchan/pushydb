@@ -194,6 +194,8 @@ func (px *Paxos) Decided(args *DecidedArgs, reply *DecidedReply) error {
   return nil
 }
 
+// Paxos wrapper for RPC calls - intercepts any calls to self
+// by manually converting to local function call
 func (px *Paxos) call(srv string, name string, args interface{}, reply interface{}) bool {
   if srv == px.addr {
     if name == "Prepare" {
