@@ -263,6 +263,9 @@ func MakeInstance(seq int) *Instance {
 }
 
 func (px *Paxos) getInstance(seq int) *Instance {
+  px.mu.Lock()
+  defer px.mu.Unlock()
+
   _,ok := px.log[seq]
   if !ok {
     px.log[seq] = MakeInstance(seq)
