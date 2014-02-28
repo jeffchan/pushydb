@@ -32,7 +32,6 @@ import "time"
 import "math"
 
 const (
-  PingInterval = time.Millisecond * 100
   Log = false
 )
 
@@ -60,6 +59,10 @@ type Instance struct {
   prepareN int64
   acceptedN int64
   acceptedVal interface{}
+}
+
+func sleepRand() {
+  time.Sleep(time.Duration(rand.Int() % 100) * time.Millisecond)
 }
 
 func (px *Paxos) n() int64 {
@@ -103,7 +106,7 @@ func (px *Paxos) Propose(seq int, val interface{}) {
 
     // Try again if no majority prepare_ok
     if prepareCount < px.majority {
-      time.Sleep(PingInterval)
+      sleepRand()
       continue
     }
 
@@ -126,7 +129,7 @@ func (px *Paxos) Propose(seq int, val interface{}) {
 
     // Try again if no majority accept_ok
     if acceptCount < px.majority {
-      time.Sleep(PingInterval)
+      sleepRand()
       continue
     }
 
