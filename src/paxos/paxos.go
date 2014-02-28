@@ -82,6 +82,8 @@ func (px *Paxos) Propose(seq int, val interface{}) {
   it := px.getInstance(seq)
   for it.decidedVal == nil && !px.dead {
     n := px.n()
+
+    // Send prepare(n)
     var maxN int64
     var maxVal interface{}
     prepareCount := 0
@@ -99,16 +101,18 @@ func (px *Paxos) Propose(seq int, val interface{}) {
       }
     }
 
-    // Only continue if majority prepare_ok
-    if prepareCount >= px.majority {
-      // Set value if none given
-      if maxVal == nil {
-        maxVal = val
-      }
-    } else {
+    // Try again if no majority prepare_ok
+    if prepareCount < px.majority {
+      time.Sleep(PingInterval)
       continue
     }
 
+    // Set value if none given
+    if maxVal == nil {
+      maxVal = val
+    }
+
+    // Send accept(n, v')
     acceptCount := 0
     for _,srv := range px.peers {
       args := AcceptArgs{seq, n, maxVal}
@@ -120,35 +124,32 @@ func (px *Paxos) Propose(seq int, val interface{}) {
       }
     }
 
-    if acceptCount >= px.majority {
-      min := math.MaxInt32
-      allCount := 0
-      for _,srv := range px.peers {
-        args := DecidedArgs{seq, maxVal}
-        var reply DecidedReply
-        reply.Seq = seq
-        ok := px.call(srv, "Decided", &args, &reply)
-        if ok && reply.HighestDoneSeq != -1 {
-          if reply.HighestDoneSeq < min {
-            min = reply.HighestDoneSeq
-          }
-          allCount++
-        }
-      }
-
-      px.mu.Lock()
-      if allCount == len(px.peers) {
-        px.highestDoneAll = min
-        for key,_ := range px.log {
-          if key <= min {
-            delete(px.log, key)
-          }
-        }
-      }
-      px.mu.Unlock()
-
+    // Try again if no majority accept_ok
+    if acceptCount < px.majority {
+      time.Sleep(PingInterval)
+      continue
     }
-    time.Sleep(PingInterval)
+
+    // Send decided(v')
+    min := math.MaxInt32
+    allCount := 0
+    for _,srv := range px.peers {
+      args := DecidedArgs{seq, maxVal}
+      var reply DecidedReply
+      reply.Seq = seq
+      ok := px.call(srv, "Decided", &args, &reply)
+      if ok && reply.HighestDoneSeq != -1 {
+        if reply.HighestDoneSeq < min {
+          min = reply.HighestDoneSeq
+        }
+        allCount++
+      }
+    }
+
+    // Free memory if common highest done seq consensus
+    if allCount == len(px.peers) {
+      px.free(min)
+    }
   }
 }
 
@@ -273,6 +274,18 @@ func (px *Paxos) getInstance(seq int) *Instance {
     px.log[seq] = MakeInstance(seq)
   }
   return px.log[seq]
+}
+
+func (px *Paxos) free(min int) {
+  px.mu.Lock()
+  defer px.mu.Unlock()
+
+  px.highestDoneAll = min
+  for key,_ := range px.log {
+    if key <= min {
+      delete(px.log, key)
+    }
+  }
 }
 
 //
