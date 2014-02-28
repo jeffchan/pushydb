@@ -136,6 +136,7 @@ func (px *Paxos) Propose(seq int, val interface{}) {
         }
       }
 
+      px.mu.Lock()
       if allCount == len(px.peers) {
         px.highestDoneAll = min
         for key,_ := range px.log {
@@ -144,6 +145,8 @@ func (px *Paxos) Propose(seq int, val interface{}) {
           }
         }
       }
+      px.mu.Unlock()
+
     }
     time.Sleep(PingInterval)
   }
@@ -308,6 +311,9 @@ func (px *Paxos) Done(seq int) {
 // this peer.
 //
 func (px *Paxos) Max() int {
+  px.mu.Lock()
+  defer px.mu.Unlock()
+
   maxKey := 0
   for key,_ := range px.log {
     if key > maxKey {
