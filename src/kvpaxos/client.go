@@ -5,14 +5,12 @@ import "fmt"
 
 type Clerk struct {
   servers []string
-  // You will have to modify this struct.
 }
 
 
 func MakeClerk(servers []string) *Clerk {
   ck := new(Clerk)
   ck.servers = servers
-  // You'll have to add code here.
   return ck
 }
 
@@ -39,7 +37,7 @@ func call(srv string, rpcname string,
     return false
   }
   defer c.Close()
-    
+
   err := c.Call(rpcname, args, reply)
   if err == nil {
     return true
@@ -55,7 +53,6 @@ func call(srv string, rpcname string,
 // keeps trying forever in the face of all other errors.
 //
 func (ck *Clerk) Get(key string) string {
-  // You will have to modify this function.
   return ""
 }
 
@@ -64,7 +61,6 @@ func (ck *Clerk) Get(key string) string {
 // keeps trying until it succeeds.
 //
 func (ck *Clerk) PutExt(key string, value string, dohash bool) string {
-  // You will have to modify this function.
   return ""
 }
 

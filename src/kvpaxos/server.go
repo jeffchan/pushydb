@@ -22,9 +22,6 @@ func DPrintf(format string, a ...interface{}) (n int, err error) {
 
 
 type Op struct {
-  // Your definitions here.
-  // Field names must start with capital letters,
-  // otherwise RPC will break.
 }
 
 type KVPaxos struct {
@@ -35,18 +32,14 @@ type KVPaxos struct {
   unreliable bool // for testing
   px *paxos.Paxos
 
-  // Your definitions here.
 }
 
 
 func (kv *KVPaxos) Get(args *GetArgs, reply *GetReply) error {
-  // Your code here.
   return nil
 }
 
 func (kv *KVPaxos) Put(args *PutArgs, reply *PutReply) error {
-  // Your code here.
-
   return nil
 }
 
@@ -64,7 +57,7 @@ func (kv *KVPaxos) kill() {
 // servers that will cooperate via Paxos to
 // form the fault-tolerant key/value service.
 // me is the index of the current server in servers[].
-// 
+//
 func StartServer(servers []string, me int) *KVPaxos {
   // call gob.Register on structures you want
   // Go's RPC library to marshall/unmarshall.
