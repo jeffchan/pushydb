@@ -102,6 +102,9 @@ func (px *Paxos) Propose(seq int, val interface{}) {
         }
         prepareCount++
       }
+      if prepareCount >= px.majority {
+        break
+      }
     }
 
     // Try again if no majority prepare_ok
@@ -124,6 +127,9 @@ func (px *Paxos) Propose(seq int, val interface{}) {
       ok := px.call(srv, "Accept", &args, &reply)
       if ok && reply.Err == OK {
         acceptCount++
+      }
+      if acceptCount >= px.majority {
+        break
       }
     }
 
