@@ -5,13 +5,23 @@ import "hash/fnv"
 const (
   OK = "OK"
   ErrNoKey = "ErrNoKey"
+  ErrNoOp = "ErrNoOp"
 )
 type Err string
+
+const (
+  Put = "Put"
+  PutHash = "PutHash"
+  Get = "Get"
+  Noop = "Noop"
+)
+type Operation string
 
 type PutArgs struct {
   Key string
   Value string
   DoHash bool  // For PutHash
+  ReqId string
 }
 
 type PutReply struct {
@@ -21,6 +31,7 @@ type PutReply struct {
 
 type GetArgs struct {
   Key string
+  ReqId string
 }
 
 type GetReply struct {

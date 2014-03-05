@@ -2,16 +2,40 @@ package kvpaxos
 
 import "net/rpc"
 import "fmt"
+import "time"
+import "crypto/rand"
+import "math/big"
+import "strconv"
+import "sync"
 
 type Clerk struct {
   servers []string
+  id string
+  counter uint
+  mu sync.Mutex
 }
-
 
 func MakeClerk(servers []string) *Clerk {
   ck := new(Clerk)
   ck.servers = servers
+  ck.id = strconv.Itoa(int(nrand()))
+  ck.counter = 0
   return ck
+}
+
+func nrand() int64 {
+  max := big.NewInt(int64(1) << 62)
+  bigx, _ := rand.Int(rand.Reader, max)
+  x := bigx.Int64()
+  return x
+}
+
+const ClerkLog = false
+func (ck *Clerk) log(format string, a ...interface{}) (n int, err error) {
+  if ClerkLog {
+    n, err = fmt.Printf(ck.id + ": " + format + "\n", a...)
+  }
+  return
 }
 
 //
@@ -47,13 +71,48 @@ func call(srv string, rpcname string,
   return false
 }
 
+func (ck *Clerk) server(try int) string {
+  index := try % len(ck.servers)
+  return ck.servers[index]
+}
+
+func (ck *Clerk) reqId() string {
+  ck.mu.Lock()
+  defer ck.mu.Unlock()
+
+  ck.counter++
+  return ck.id + ":" + strconv.Itoa(int(ck.counter))
+}
+
 //
 // fetch the current value for a key.
 // returns "" if the key does not exist.
 // keeps trying forever in the face of all other errors.
 //
 func (ck *Clerk) Get(key string) string {
-  return ""
+  tries := 0
+  server := ck.server(tries)
+  id := ck.reqId()
+
+  ck.log("Get: key=%s", key)
+
+  var reply GetReply
+  args := GetArgs{Key: key, ReqId: id}
+
+  for {
+    ok := call(server, "KVPaxos.Get", &args, &reply)
+    err := reply.Err
+
+    if err == OK || err == ErrNoKey {
+      return reply.Value
+    } else if !ok {
+      tries++
+      server = ck.server(tries)
+    }
+
+    ck.log("Get: key=%s, retry=%d", key, tries)
+    time.Sleep(TickInterval)
+  }
 }
 
 //
@@ -61,7 +120,29 @@ func (ck *Clerk) Get(key string) string {
 // keeps trying until it succeeds.
 //
 func (ck *Clerk) PutExt(key string, value string, dohash bool) string {
-  return ""
+  tries := 0
+  server := ck.server(tries)
+  id := ck.reqId()
+
+  ck.log("Put: key=%s, val=%s, hash=%t", key, value, dohash)
+
+  var reply PutReply
+  args := PutArgs{Key: key, Value: value, DoHash: dohash, ReqId: id}
+
+  for {
+    ok := call(server, "KVPaxos.Put", &args, &reply)
+    err := reply.Err
+
+    if err == OK {
+      return reply.PreviousValue
+    } else if !ok {
+      tries++
+      server = ck.server(tries)
+    }
+
+    ck.log("Put: key=%s, val=%s, retry=%d", key, value, tries)
+    time.Sleep(TickInterval)
+  }
 }
 
 func (ck *Clerk) Put(key string, value string) {
