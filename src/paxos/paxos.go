@@ -330,7 +330,7 @@ func (px *Paxos) Max() int {
   px.mu.Lock()
   defer px.mu.Unlock()
 
-  maxKey := 0
+  maxKey := -1
   for key,_ := range px.log {
     if key > maxKey {
       maxKey = key
@@ -382,6 +382,10 @@ func (px *Paxos) Status(seq int) (bool, interface{}) {
   // If Status() is called with a sequence number less than Min(),
   // Status() should return false (indicating no agreement).
   if seq < px.Min() {
+    return false, nil
+  }
+
+  if seq > px.Max() {
     return false, nil
   }
 
