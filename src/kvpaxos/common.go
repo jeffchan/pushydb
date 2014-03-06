@@ -6,6 +6,7 @@ const (
   OK = "OK"
   ErrNoKey = "ErrNoKey"
   ErrNoOp = "ErrNoOp"
+  ErrInvalid = "ErrInvalid"
 )
 type Err string
 
@@ -21,7 +22,7 @@ type PutArgs struct {
   Key string
   Value string
   DoHash bool  // For PutHash
-  ReqId string
+  ClientId string
 }
 
 type PutReply struct {
@@ -31,7 +32,7 @@ type PutReply struct {
 
 type GetArgs struct {
   Key string
-  ReqId string
+  ClientId string
 }
 
 type GetReply struct {

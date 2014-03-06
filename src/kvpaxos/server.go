@@ -27,7 +27,7 @@ func DPrintf(format string, a ...interface{}) (n int, err error) {
 
 type Op struct {
   Operation Operation
-  ReqId string
+  ClientId string
   Key string
   Value string
 }
@@ -41,7 +41,7 @@ type KVPaxos struct {
   px *paxos.Paxos
 
   table map[string]string
-  cache map[int]string
+  cache map[string]string
   highestDone int
 }
 
@@ -92,62 +92,74 @@ func (kv *KVPaxos) applyPut(key string, val string, dohash bool) (string,Err) {
   return oldval,OK
 }
 
-func (kv *KVPaxos) Get(args *GetArgs, reply *GetReply) error {
+func (kv *KVPaxos) resolveOp(op Op) (string,Err) {
   seq := kv.px.Max()+1
-  key := args.Key
-  reqId := args.ReqId
+  clientId := op.ClientId
 
-  kv.log("Get init, seq=%d, key=%s, reqId=%s", seq, key, reqId)
-
-  op := Op{Operation: Get, ReqId: reqId, Key: key}
   kv.px.Start(seq, op)
 
+  time.Sleep(10 * time.Millisecond)
+
   to := 10 * time.Millisecond
-  for {
-    decided,result := kv.px.Status(seq)
-    if decided {
-      // kv.log("Get decided, seq=%d", seq)
-
-      if result == op {
-        for {
-          kv.mu.Lock()
-          val,ok := kv.cache[seq]
-          delete(kv.cache, seq) // free memory
-          kv.mu.Unlock()
-          if ok {
-            reply.Value = val
-            reply.Err = OK
-
-            kv.log("Get done, key=%s, val=%s", key, val)
-
-            break
-          }
-        }
-
-        break
-      } else {
-        seq = kv.px.Max()+1
-        kv.px.Start(seq, op)
-      }
+  decided,result := kv.px.Status(seq)
+  for !decided || result != op {
+    if decided && result != op {
+      kv.log("Seq=%d already decided", seq)
+      seq = kv.px.Max()+1
+      kv.px.Start(seq, op)
     }
 
-    kv.log("Get retry w/ seq=%d", seq)
+    kv.log("Retry w/ seq=%d", seq)
     time.Sleep((time.Duration(rand.Int() % 100)  * time.Millisecond) + to)
     if to < 100 * time.Millisecond {
       to *= 2
     }
+
+    decided,result = kv.px.Status(seq)
   }
+
+  kv.log("Seq=%d decided!", seq)
+
+  // block until done
+  for kv.highestDone < seq {
+    time.Sleep(10 * time.Millisecond)
+  }
+
+  kv.mu.Lock()
+  val,ok := kv.cache[clientId]
+  kv.mu.Unlock()
+
+  if !ok {
+    // should not happen since assuming at most one outstanding get/put
+    return "", ErrInvalid
+  }
+
+  return val, OK
+}
+
+func (kv *KVPaxos) Get(args *GetArgs, reply *GetReply) error {
+  key := args.Key
+  clientId := args.ClientId
+
+  kv.log("Get init, key=%s, clientId=%s", key, clientId)
+
+  op := Op{Operation: Get, ClientId: args.ClientId, Key: args.Key}
+
+  val,err := kv.resolveOp(op)
+  reply.Value = val
+  reply.Err = err
+
+  kv.log("Get end, key=%s, val=%s, clientId=%s", key, val, clientId)
 
   return nil
 }
 
 func (kv *KVPaxos) Put(args *PutArgs, reply *PutReply) error {
-  seq := kv.px.Max()+1
   key := args.Key
   val := args.Value
-  reqId := args.ReqId
+  clientId := args.ClientId
 
-  kv.log("Put init, seq=%d, key=%s, val=%s, reqId=%s", seq, key, val, reqId)
+  kv.log("Put start, key=%s, val=%s, clientId=%s", key, val, clientId)
 
   var operation Operation
   if args.DoHash {
@@ -156,44 +168,13 @@ func (kv *KVPaxos) Put(args *PutArgs, reply *PutReply) error {
     operation = Put
   }
 
-  op := Op{Operation: operation, ReqId: reqId, Key: key, Value: val}
-  kv.px.Start(seq, op)
+  op := Op{Operation: operation, ClientId: clientId, Key: key, Value: val}
 
-  to := 10 * time.Millisecond
-  for {
-    decided,result := kv.px.Status(seq)
-    if decided {
-      // kv.log("Put decided, seq=%d", seq)
+  prev,err := kv.resolveOp(op)
+  reply.PreviousValue = prev
+  reply.Err = err
 
-      if result == op {
-
-        for {
-          kv.mu.Lock()
-          oldval,ok := kv.cache[seq]
-          kv.mu.Unlock()
-
-          if ok {
-            reply.PreviousValue = oldval
-            reply.Err = OK
-
-            kv.log("Put done, key=%s, oldval=%s", key, oldval)
-
-            break
-          }
-        }
-
-        break
-      } else {
-        seq = kv.px.Max()+1
-        kv.px.Start(seq, op)
-      }
-    }
-    kv.log("Put retry w/ seq=%d", seq)
-    time.Sleep((time.Duration(rand.Int() % 100)  * time.Millisecond) + to)
-    if to < 100 * time.Millisecond {
-      to *= 2
-    }
-  }
+  kv.log("Put end, key=%s, val=%s, prev=%s, clientId=%s", key, val, prev, clientId)
 
   return nil
 }
@@ -210,8 +191,7 @@ func (kv *KVPaxos) tick() {
       // apply the operation
       op,_ := result.(Op)
       val,_ := kv.applyOp(&op)
-      kv.px.Done(seq)
-      kv.cache[seq] = val
+      kv.cache[op.ClientId] = val
       kv.highestDone += 1
       kv.log("Apply %s from seq=%d", op.Operation, seq)
 
@@ -224,7 +204,7 @@ func (kv *KVPaxos) tick() {
       // kv.log("Retry for seq=%d", seq)
 
       if timeout > 100 * time.Millisecond {
-        kv.px.Start(seq, Op{Operation: Noop})
+        // kv.px.Start(seq, Op{Operation: Noop})
       }
 
       // wait before retrying
@@ -261,7 +241,7 @@ func StartServer(servers []string, me int) *KVPaxos {
   kv.me = me
 
   kv.table = make(map[string]string)
-  kv.cache = make(map[int]string)
+  kv.cache = make(map[string]string)
   kv.highestDone = -1
 
   rpcs := rpc.NewServer()

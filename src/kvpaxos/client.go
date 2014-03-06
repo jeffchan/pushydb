@@ -11,7 +11,6 @@ import "sync"
 type Clerk struct {
   servers []string
   id string
-  counter uint
   mu sync.Mutex
 }
 
@@ -19,7 +18,6 @@ func MakeClerk(servers []string) *Clerk {
   ck := new(Clerk)
   ck.servers = servers
   ck.id = strconv.Itoa(int(nrand()))
-  ck.counter = 0
   return ck
 }
 
@@ -76,14 +74,6 @@ func (ck *Clerk) server(try int) string {
   return ck.servers[index]
 }
 
-func (ck *Clerk) reqId() string {
-  ck.mu.Lock()
-  defer ck.mu.Unlock()
-
-  ck.counter++
-  return ck.id + ":" + strconv.Itoa(int(ck.counter))
-}
-
 //
 // fetch the current value for a key.
 // returns "" if the key does not exist.
@@ -92,12 +82,11 @@ func (ck *Clerk) reqId() string {
 func (ck *Clerk) Get(key string) string {
   tries := 0
   server := ck.server(tries)
-  id := ck.reqId()
 
   ck.log("Get: key=%s", key)
 
   var reply GetReply
-  args := GetArgs{Key: key, ReqId: id}
+  args := GetArgs{Key: key, ClientId: ck.id}
 
   for {
     ok := call(server, "KVPaxos.Get", &args, &reply)
@@ -122,12 +111,11 @@ func (ck *Clerk) Get(key string) string {
 func (ck *Clerk) PutExt(key string, value string, dohash bool) string {
   tries := 0
   server := ck.server(tries)
-  id := ck.reqId()
 
   ck.log("Put: key=%s, val=%s, hash=%t", key, value, dohash)
 
   var reply PutReply
-  args := PutArgs{Key: key, Value: value, DoHash: dohash, ReqId: id}
+  args := PutArgs{Key: key, Value: value, DoHash: dohash, ClientId: ck.id}
 
   for {
     ok := call(server, "KVPaxos.Put", &args, &reply)
