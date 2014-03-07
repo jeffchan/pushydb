@@ -12,6 +12,7 @@ import "encoding/gob"
 import "math/rand"
 import "time"
 import "strconv"
+import "strings"
 
 const (
   Debug = 0
@@ -25,11 +26,23 @@ func DPrintf(format string, a ...interface{}) (n int, err error) {
   return
 }
 
+func ParseClientId(reqId string) string {
+  s := strings.Split(reqId, ":")
+  return s[0]
+}
+
 type Op struct {
   Operation Operation
   ClientId string
+  ReqId string
   Key string
   Value string
+}
+
+type Result struct {
+  ReqId string
+  Val string
+  Err Err
 }
 
 type KVPaxos struct {
@@ -41,11 +54,11 @@ type KVPaxos struct {
   px *paxos.Paxos
 
   table map[string]string
-  cache map[string]string
+  cache map[string]*Result
   highestDone int
 }
 
-const ServerLog = false
+const ServerLog = true
 func (kv *KVPaxos) log(format string, a ...interface{}) (n int, err error) {
   if ServerLog {
     addr := "Srv#" + strconv.Itoa(kv.me)
@@ -96,14 +109,22 @@ func (kv *KVPaxos) resolveOp(op Op) (string,Err) {
   seq := kv.px.Max()+1
   clientId := op.ClientId
 
+  kv.mu.Lock()
+  dup,exists := kv.cache[clientId]
+  kv.mu.Unlock()
+
+  if exists && dup.ReqId == op.ReqId {
+    return dup.Val, dup.Err
+  }
+
   kv.px.Start(seq, op)
 
   time.Sleep(10 * time.Millisecond)
 
   to := 10 * time.Millisecond
-  decided,result := kv.px.Status(seq)
-  for !decided || result != op {
-    if decided && result != op {
+  decided,val := kv.px.Status(seq)
+  for !decided || val != op {
+    if decided && val != op {
       kv.log("Seq=%d already decided", seq)
       seq = kv.px.Max()+1
       kv.px.Start(seq, op)
@@ -115,7 +136,7 @@ func (kv *KVPaxos) resolveOp(op Op) (string,Err) {
       to *= 2
     }
 
-    decided,result = kv.px.Status(seq)
+    decided,val = kv.px.Status(seq)
   }
 
   kv.log("Seq=%d decided!", seq)
@@ -126,24 +147,26 @@ func (kv *KVPaxos) resolveOp(op Op) (string,Err) {
   }
 
   kv.mu.Lock()
-  val,ok := kv.cache[clientId]
+  result,exists := kv.cache[clientId]
   kv.mu.Unlock()
 
-  if !ok {
+  // kv.px.Done(seq) // breaking shit
+
+  if !exists {
     // should not happen since assuming at most one outstanding get/put
     return "", ErrInvalid
   }
 
-  return val, OK
+  return result.Val, result.Err
 }
 
 func (kv *KVPaxos) Get(args *GetArgs, reply *GetReply) error {
   key := args.Key
-  clientId := args.ClientId
+  clientId := ParseClientId(args.ReqId)
 
   kv.log("Get init, key=%s, clientId=%s", key, clientId)
 
-  op := Op{Operation: Get, ClientId: args.ClientId, Key: args.Key}
+  op := Op{Operation: Get, ClientId: clientId, ReqId: args.ReqId, Key: key}
 
   val,err := kv.resolveOp(op)
   reply.Value = val
@@ -157,7 +180,7 @@ func (kv *KVPaxos) Get(args *GetArgs, reply *GetReply) error {
 func (kv *KVPaxos) Put(args *PutArgs, reply *PutReply) error {
   key := args.Key
   val := args.Value
-  clientId := args.ClientId
+  clientId := ParseClientId(args.ReqId)
 
   kv.log("Put start, key=%s, val=%s, clientId=%s", key, val, clientId)
 
@@ -168,7 +191,7 @@ func (kv *KVPaxos) Put(args *PutArgs, reply *PutReply) error {
     operation = Put
   }
 
-  op := Op{Operation: operation, ClientId: clientId, Key: key, Value: val}
+  op := Op{Operation: operation, ClientId: clientId, ReqId: args.ReqId, Key: key, Value: val}
 
   prev,err := kv.resolveOp(op)
   reply.PreviousValue = prev
@@ -190,8 +213,12 @@ func (kv *KVPaxos) tick() {
     if decided {
       // apply the operation
       op,_ := result.(Op)
-      val,_ := kv.applyOp(&op)
-      kv.cache[op.ClientId] = val
+      val,err := kv.applyOp(&op)
+
+      if err != ErrNoOp {
+        kv.cache[op.ClientId] = &Result{ReqId: op.ReqId, Val: val, Err: err}
+      }
+
       kv.highestDone += 1
       kv.log("Apply %s from seq=%d", op.Operation, seq)
 
@@ -203,8 +230,8 @@ func (kv *KVPaxos) tick() {
       kv.mu.Unlock()
       // kv.log("Retry for seq=%d", seq)
 
-      if timeout > 100 * time.Millisecond {
-        // kv.px.Start(seq, Op{Operation: Noop})
+      if timeout > 1 * time.Second {
+        kv.px.Start(seq, Op{Operation: Noop})
       }
 
       // wait before retrying
@@ -241,7 +268,7 @@ func StartServer(servers []string, me int) *KVPaxos {
   kv.me = me
 
   kv.table = make(map[string]string)
-  kv.cache = make(map[string]string)
+  kv.cache = make(map[string]*Result)
   kv.highestDone = -1
 
   rpcs := rpc.NewServer()
