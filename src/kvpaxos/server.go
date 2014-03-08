@@ -267,14 +267,14 @@ func (kv *KVPaxos) tick() {
           noopDone,_ = kv.px.Status(seq)
           time.Sleep(100 * time.Millisecond)
         }
-      }
+      } else {
+        // wait before retrying
+        time.Sleep(timeout)
 
-      // wait before retrying
-      time.Sleep(timeout)
-
-      if timeout < 1000 * time.Millisecond {
-        // expotential backoff
-        timeout *= 2
+        if timeout < 1000 * time.Millisecond {
+          // expotential backoff
+          timeout *= 2
+        }
       }
     }
   }
