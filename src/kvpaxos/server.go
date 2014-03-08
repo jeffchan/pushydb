@@ -33,6 +33,10 @@ func ParseReqId(reqId string) (string,uint64) {
   return clientId,reqNum
 }
 
+func randMTime() time.Duration {
+  return time.Duration(rand.Int() % 100)  * time.Millisecond
+}
+
 type Op struct {
   Operation Operation
   ClientId string
@@ -156,7 +160,7 @@ func (kv *KVPaxos) resolveOp(op Op) (string,Err) {
     }
 
     // kv.log("Retry w/ seq=%d", seq)
-    time.Sleep((time.Duration(rand.Int() % 100)  * time.Millisecond) + to)
+    time.Sleep(to + randMTime())
     if to < 100 * time.Millisecond {
       to *= 2
     }
