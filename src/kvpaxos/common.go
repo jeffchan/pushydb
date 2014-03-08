@@ -6,6 +6,7 @@ const (
   OK = "OK"
   ErrNoKey = "ErrNoKey"
   ErrNoOp = "ErrNoOp"
+  ErrAlreadyApplied = "ErrAlreadyApplied"
   ErrInvalid = "ErrInvalid"
 )
 type Err string
