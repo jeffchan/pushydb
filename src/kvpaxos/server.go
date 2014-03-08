@@ -155,7 +155,7 @@ func (kv *KVPaxos) resolveOp(op Op) (string,Err) {
       kv.px.Start(seq, op)
     }
 
-    kv.log("Retry w/ seq=%d", seq)
+    // kv.log("Retry w/ seq=%d", seq)
     time.Sleep((time.Duration(rand.Int() % 100)  * time.Millisecond) + to)
     if to < 100 * time.Millisecond {
       to *= 2
@@ -257,15 +257,22 @@ func (kv *KVPaxos) tick() {
     } else {
       // kv.log("Retry for seq=%d", seq)
 
-      if timeout >= 200 * time.Millisecond {
+      if timeout >= 1000 * time.Millisecond {
         kv.log("Try noop for seq=%d", seq)
         kv.px.Start(seq, Op{Operation: Noop})
+
+        // wait for noop to return
+        noopDone := false
+        for !noopDone {
+          noopDone,_ = kv.px.Status(seq)
+          time.Sleep(100 * time.Millisecond)
+        }
       }
 
       // wait before retrying
       time.Sleep(timeout)
 
-      if timeout < 200 * time.Millisecond {
+      if timeout < 1000 * time.Millisecond {
         // expotential backoff
         timeout *= 2
       }
