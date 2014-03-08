@@ -15,6 +15,7 @@ type Clerk struct {
   mu sync.Mutex
   counter uint64
 }
+const TickInterval = 100 * time.Millisecond
 
 func MakeClerk(servers []string) *Clerk {
   ck := new(Clerk)

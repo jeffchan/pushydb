@@ -16,7 +16,7 @@ import "strings"
 
 const (
   Debug = 0
-  TickInterval = 100 * time.Millisecond
+  InitTimeout = 10 * time.Millisecond
 )
 
 func DPrintf(format string, a ...interface{}) (n int, err error) {
@@ -148,9 +148,9 @@ func (kv *KVPaxos) resolveOp(op Op) (string,Err) {
 
   kv.px.Start(seq, op)
 
-  time.Sleep(10 * time.Millisecond)
+  to := InitTimeout
+  time.Sleep(to)
 
-  to := 10 * time.Millisecond
   decided,val := kv.px.Status(seq)
   for !decided || val != op {
     if (decided && val != op) || (seq <= kv.highestDone) {
@@ -172,7 +172,7 @@ func (kv *KVPaxos) resolveOp(op Op) (string,Err) {
 
   // block until done
   for kv.highestDone < seq {
-    time.Sleep(10 * time.Millisecond)
+    time.Sleep(InitTimeout)
   }
 
   kv.mu.Lock()
@@ -233,7 +233,7 @@ func (kv *KVPaxos) Put(args *PutArgs, reply *PutReply) error {
 
 func (kv *KVPaxos) tick() {
 
-  timeout := 10 * time.Millisecond
+  timeout := InitTimeout
 
   for kv.dead == false {
 
@@ -256,12 +256,12 @@ func (kv *KVPaxos) tick() {
       kv.log("Apply %s from seq=%d", op.Operation, seq)
 
       // reset timeout
-      timeout = 10 * time.Millisecond
+      timeout = InitTimeout
 
     } else {
       // kv.log("Retry for seq=%d", seq)
 
-      if timeout >= 1000 * time.Millisecond {
+      if timeout >= 1 * time.Second {
         kv.log("Try noop for seq=%d", seq)
         kv.px.Start(seq, Op{Operation: Noop})
 
@@ -275,7 +275,7 @@ func (kv *KVPaxos) tick() {
         // wait before retrying
         time.Sleep(timeout)
 
-        if timeout < 1000 * time.Millisecond {
+        if timeout < 1 * time.Second {
           // expotential backoff
           timeout *= 2
         }
