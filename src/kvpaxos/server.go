@@ -60,7 +60,7 @@ type KVPaxos struct {
   highestDone int
 }
 
-const ServerLog = true
+const ServerLog = false
 func (kv *KVPaxos) log(format string, a ...interface{}) (n int, err error) {
   if ServerLog {
     addr := "Srv#" + strconv.Itoa(kv.me)
@@ -149,7 +149,7 @@ func (kv *KVPaxos) resolveOp(op Op) (string,Err) {
   to := 10 * time.Millisecond
   decided,val := kv.px.Status(seq)
   for !decided || val != op {
-    if decided && val != op {
+    if (decided && val != op) || (seq <= kv.highestDone) {
       kv.log("Seq=%d already decided", seq)
       seq = kv.px.Max()+1
       kv.px.Start(seq, op)
@@ -175,7 +175,7 @@ func (kv *KVPaxos) resolveOp(op Op) (string,Err) {
   result,exists := kv.cache[clientId]
   kv.mu.Unlock()
 
-  // kv.px.Done(seq) // breaking shit
+  kv.px.Done(seq)
 
   if !exists {
     // should not happen since assuming at most one outstanding get/put
