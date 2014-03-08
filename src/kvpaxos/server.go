@@ -61,7 +61,7 @@ type KVPaxos struct {
 
   table map[string]string
   cache map[string]*Result
-  highestDone int
+  lastAppliedSeq int
 }
 
 const ServerLog = false
@@ -153,7 +153,7 @@ func (kv *KVPaxos) resolveOp(op Op) (string,Err) {
 
   decided,val := kv.px.Status(seq)
   for !decided || val != op {
-    if (decided && val != op) || (seq <= kv.highestDone) {
+    if (decided && val != op) || (seq <= kv.lastAppliedSeq) {
       kv.log("Seq=%d already decided", seq)
       seq = kv.px.Max()+1
       kv.px.Start(seq, op)
@@ -170,8 +170,8 @@ func (kv *KVPaxos) resolveOp(op Op) (string,Err) {
 
   kv.log("Seq=%d decided!", seq)
 
-  // block until done
-  for kv.highestDone < seq {
+  // block until seq op has been applied
+  for kv.lastAppliedSeq < seq {
     time.Sleep(InitTimeout)
   }
 
@@ -237,7 +237,7 @@ func (kv *KVPaxos) tick() {
 
   for kv.dead == false {
 
-    seq := kv.highestDone+1
+    seq := kv.lastAppliedSeq+1
     decided,result := kv.px.Status(seq)
 
     if decided {
@@ -250,7 +250,7 @@ func (kv *KVPaxos) tick() {
         kv.cache[op.ClientId] = &Result{ReqId: op.ReqId, Val: val, Err: err}
       }
 
-      kv.highestDone += 1
+      kv.lastAppliedSeq += 1
       kv.mu.Unlock()
 
       kv.log("Apply %s from seq=%d", op.Operation, seq)
@@ -309,7 +309,7 @@ func StartServer(servers []string, me int) *KVPaxos {
 
   kv.table = make(map[string]string)
   kv.cache = make(map[string]*Result)
-  kv.highestDone = -1
+  kv.lastAppliedSeq = -1
 
   rpcs := rpc.NewServer()
   rpcs.Register(kv)
