@@ -66,7 +66,7 @@ func sleepRand() {
 }
 
 func (px *Paxos) n() int64 {
-  return time.Now().Unix() * int64(len(px.peers)) + int64(px.me)
+  return time.Now().UnixNano() * int64(len(px.peers)) + int64(px.me)
 }
 
 func (px *Paxos) x(format string, a ...interface{}) (n int, err error) {
