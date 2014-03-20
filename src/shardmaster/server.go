@@ -68,28 +68,32 @@ type Operation string
 
 type Op struct {
   Operation Operation
-  GID int64           // for Join, Leave, Move
-  Servers []string    // for Join
-  Shard int           // for Move
-  Num int             // for Query
+  Args interface{}
 }
 
 func OpEquals(a Op, b Op) bool {
-  if a.Operation != b.Operation ||
-     a.GID != b.GID ||
-     a.Shard != b.Shard ||
-     a.Num != b.Num ||
-     len(a.Servers) != len(b.Servers) {
+  if a.Operation != b.Operation {
     return false
   }
 
-  for index,val := range a.Servers {
-    if val != b.Servers[index] {
+  if a.Operation == Join {
+    aArgs := a.Args.(JoinArgs)
+    bArgs := b.Args.(JoinArgs)
+
+    if len(aArgs.Servers) != len(bArgs.Servers) {
       return false
     }
+
+    for index,val := range aArgs.Servers {
+      if val != bArgs.Servers[index] {
+        return false
+      }
+    }
+
+    return aArgs.GID == bArgs.GID
   }
 
-  return true
+  return a.Args == b.Args
 }
 
 func RandMTime() time.Duration {
@@ -155,28 +159,28 @@ func SortShardAllocs(availGids map[int64]*ShardAlloc, order string) []ShardAlloc
 
 func (sm *ShardMaster) Join(args *JoinArgs, reply *JoinReply) error {
   sm.log("Join RPC: gid=%d, servers=%s", args.GID, args.Servers)
-  op := Op{Operation: Join, GID: args.GID, Servers: args.Servers}
+  op := Op{Operation: Join, Args: *args}
   sm.resolveOp(op)
   return nil
 }
 
 func (sm *ShardMaster) Leave(args *LeaveArgs, reply *LeaveReply) error {
   sm.log("Leave RPC: gid=%d", args.GID)
-  op := Op{Operation: Leave, GID: args.GID}
+  op := Op{Operation: Leave, Args: *args}
   sm.resolveOp(op)
   return nil
 }
 
 func (sm *ShardMaster) Move(args *MoveArgs, reply *MoveReply) error {
   sm.log("Move RPC: shard=%d, to_gid=%d", args.Shard, args.GID)
-  op := Op{Operation: Move, Shard: args.Shard, GID: args.GID}
+  op := Op{Operation: Move, Args: *args}
   sm.resolveOp(op)
   return nil
 }
 
 func (sm *ShardMaster) Query(args *QueryArgs, reply *QueryReply) error {
   sm.log("Query RPC: config_num=%d", args.Num)
-  op := Op{Operation: Query, Num: args.Num}
+  op := Op{Operation: Query, Args: *args}
   config := sm.resolveOp(op)
   reply.Config = config
 
@@ -227,7 +231,8 @@ func (sm *ShardMaster) resolveOp(op Op) Config {
   sm.px.Done(seq)
 
   if op.Operation == Query {
-    config,_ := sm.applyQuery(op.Num)
+    num := op.Args.(QueryArgs).Num
+    config,_ := sm.applyQuery(num)
 
     return *config
   }
@@ -354,13 +359,17 @@ func (sm *ShardMaster) applyOp(op *Op) (*Config,Err) {
 
   switch op.Operation {
   case Join:
-    return sm.applyJoin(op.GID, op.Servers)
+    args := op.Args.(JoinArgs)
+    return sm.applyJoin(args.GID, args.Servers)
   case Leave:
-    return sm.applyLeave(op.GID)
+    args := op.Args.(LeaveArgs)
+    return sm.applyLeave(args.GID)
   case Move:
-    return sm.applyMove(op.Shard, op.GID)
+    args := op.Args.(MoveArgs)
+    return sm.applyMove(args.Shard, args.GID)
   case Query:
-    return sm.applyQuery(op.Num)
+    args := op.Args.(QueryArgs)
+    return sm.applyQuery(args.Num)
   }
 
   // Should not reach this point
@@ -447,6 +456,10 @@ func (sm *ShardMaster) Kill() {
 //
 func StartServer(servers []string, me int) *ShardMaster {
   gob.Register(Op{})
+  gob.Register(JoinArgs{})
+  gob.Register(LeaveArgs{})
+  gob.Register(MoveArgs{})
+  gob.Register(QueryArgs{})
 
   sm := new(ShardMaster)
   sm.me = me
