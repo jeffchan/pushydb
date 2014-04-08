@@ -12,21 +12,19 @@ import "syscall"
 import "encoding/gob"
 import "math/rand"
 import "shardmaster"
+import "strconv"
+import "strings"
 
-const Debug=0
-
-func DPrintf(format string, a ...interface{}) (n int, err error) {
-        if Debug > 0 {
-                log.Printf(format, a...)
-        }
-        return
+func ParseReqId(reqId string) (string,uint64) {
+  s := strings.Split(reqId, ":")
+  clientId := s[0]
+  reqNum,_ := strconv.ParseUint(s[1], 10, 64)
+  return clientId,reqNum
 }
-
 
 type Op struct {
   // Your definitions here.
 }
-
 
 type ShardKV struct {
   mu sync.Mutex
@@ -38,18 +36,41 @@ type ShardKV struct {
   px *paxos.Paxos
 
   gid int64 // my replica group ID
-
-  // Your definitions here.
+  config shardmaster.Config
 }
 
+const ServerLog = true
+func (kv *ShardKV) log(format string, a ...interface{}) (n int, err error) {
+  if ServerLog {
+    addr := "Srv#" + strconv.Itoa(kv.me)
+    gid := "GID#" + strconv.FormatInt(kv.gid, 10)
+    n, err = fmt.Printf(addr + "|" + gid + " >> " + format + "\n", a...)
+  }
+  return
+}
 
 func (kv *ShardKV) Get(args *GetArgs, reply *GetReply) error {
-  // Your code here.
+  key := args.Key
+  clientId,_ := ParseReqId(args.ReqId)
+
+  kv.log("Get receive, key=%s, clientId=%s", key, clientId)
+
+  val := ""
+  kv.log("Get return, key=%s, val=%s, clientId=%s", key, val, clientId)
+
   return nil
 }
 
 func (kv *ShardKV) Put(args *PutArgs, reply *PutReply) error {
-  // Your code here.
+  key := args.Key
+  val := args.Value
+  clientId,_ := ParseReqId(args.ReqId)
+
+  kv.log("Put receive, key=%s, val=%s, clientId=%s", key, val, clientId)
+
+  prev := ""
+  kv.log("Put return, key=%s, val=%s, prev=%s, clientId=%s", key, val, prev, clientId)
+
   return nil
 }
 
@@ -59,7 +80,6 @@ func (kv *ShardKV) Put(args *PutArgs, reply *PutReply) error {
 //
 func (kv *ShardKV) tick() {
 }
-
 
 // tell the server to shut itself down.
 func (kv *ShardKV) kill() {
