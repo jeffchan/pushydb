@@ -22,8 +22,18 @@ func ParseReqId(reqId string) (string,uint64) {
   return clientId,reqNum
 }
 
+const (
+  Put = "Put"
+  PutHash = "PutHash"
+  Get = "Get"
+  Reconfig = "Reconfig"
+  Noop = "Noop"
+)
+type Operation string
+
 type Op struct {
-  // Your definitions here.
+  Operation Operation
+  Args interface{}
 }
 
 type ShardKV struct {
@@ -74,7 +84,7 @@ func (kv *ShardKV) Put(args *PutArgs, reply *PutReply) error {
   return nil
 }
 
-func (kv *ShardKv) reconfig() {
+func (kv *ShardKV) reconfig() {
 
 }
 
