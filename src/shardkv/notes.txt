@@ -1,0 +1,13 @@
+- periodically check for new config in tick()
+- gob.register args
+- return ErrWrongGroup if incorrect shard server called
+- ErrWrongGroup should only return if all holes in log filled
+- replicas need to share key values with each other during reconfig
+- process reconfigs in order
+- need to call px.Done
+- need to also share client state/dup table -- probably not a good idea to simply just "replace" table
+- ErrWrongGroup shouldn't be in dup table, shouldn't change seq number (?)
+- when should giving shards happen?
+- don't have to delete old shares after reconfig
+- can assume " the group containing the shard to be transfered is always available"
+- "It might be cleaner for all groups to go through all reconfigurations than skipping reconfigurations for servers whose assigned shards doesn't change."
