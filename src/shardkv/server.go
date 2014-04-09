@@ -74,11 +74,25 @@ func (kv *ShardKV) Put(args *PutArgs, reply *PutReply) error {
   return nil
 }
 
+func (kv *ShardKv) reconfig() {
+
+}
+
 //
 // Ask the shardmaster if there's a new configuration;
 // if so, re-configure.
 //
 func (kv *ShardKV) tick() {
+  kv.mu.Lock()
+  defer kv.mu.Unlock()
+
+  // Query shardmaster for latest config
+  newConfig := kv.sm.Query(-1)
+
+  // Reconfigure if there's a new configuration
+  if newConfig.Num > kv.config.Num {
+    kv.reconfig()
+  }
 }
 
 // tell the server to shut itself down.
@@ -105,9 +119,7 @@ func StartServer(gid int64, shardmasters []string,
   kv.me = me
   kv.gid = gid
   kv.sm = shardmaster.MakeClerk(shardmasters)
-
-  // Your initialization code here.
-  // Don't call Join().
+  kv.config = kv.sm.Query(-1)
 
   rpcs := rpc.NewServer()
   rpcs.Register(kv)
