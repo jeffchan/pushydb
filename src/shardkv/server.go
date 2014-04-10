@@ -15,6 +15,11 @@ import "shardmaster"
 import "strconv"
 import "strings"
 
+const (
+  ServerLog = false
+  InitTimeout = 10 * time.Millisecond
+)
+
 func ParseReqId(reqId string) (string,uint64) {
   s := strings.Split(reqId, ":")
   clientId := s[0]
@@ -22,9 +27,12 @@ func ParseReqId(reqId string) (string,uint64) {
   return clientId,reqNum
 }
 
+func RandMTime() time.Duration {
+  return time.Duration(rand.Int() % 100)  * time.Millisecond
+}
+
 const (
   Put = "Put"
-  PutHash = "PutHash"
   Get = "Get"
   Reconfig = "Reconfig"
   Noop = "Noop"
@@ -34,6 +42,13 @@ type Operation string
 type Op struct {
   Operation Operation
   Args interface{}
+  ReqId string
+}
+
+type Result struct {
+  ReqId string
+  Val string
+  Err Err
 }
 
 type ShardKV struct {
@@ -47,16 +62,10 @@ type ShardKV struct {
 
   gid int64 // my replica group ID
   config shardmaster.Config
-}
 
-const ServerLog = true
-func (kv *ShardKV) log(format string, a ...interface{}) (n int, err error) {
-  if ServerLog {
-    addr := "Srv#" + strconv.Itoa(kv.me)
-    gid := "GID#" + strconv.FormatInt(kv.gid, 10)
-    n, err = fmt.Printf(addr + "|" + gid + " >> " + format + "\n", a...)
-  }
-  return
+  table map[string]string
+  cache map[string]*Result
+  lastAppliedSeq int
 }
 
 func (kv *ShardKV) Get(args *GetArgs, reply *GetReply) error {
@@ -65,7 +74,12 @@ func (kv *ShardKV) Get(args *GetArgs, reply *GetReply) error {
 
   kv.log("Get receive, key=%s, clientId=%s", key, clientId)
 
-  val := ""
+  op := Op{Operation: Get, Args: *args, ReqId: args.ReqId}
+
+  val,err := kv.resolveOp(op)
+  reply.Value = val
+  reply.Err = err
+
   kv.log("Get return, key=%s, val=%s, clientId=%s", key, val, clientId)
 
   return nil
@@ -78,14 +92,190 @@ func (kv *ShardKV) Put(args *PutArgs, reply *PutReply) error {
 
   kv.log("Put receive, key=%s, val=%s, clientId=%s", key, val, clientId)
 
-  prev := ""
+  op := Op{Operation: Put, Args: *args, ReqId: args.ReqId}
+
+  prev,err := kv.resolveOp(op)
+  reply.PreviousValue = prev
+  reply.Err = err
+
   kv.log("Put return, key=%s, val=%s, prev=%s, clientId=%s", key, val, prev, clientId)
 
   return nil
 }
 
+func (kv *ShardKV) resolveOp(op Op) (string,Err) {
+  seq := kv.px.Max()+1
+  clientId,_ := ParseReqId(op.ReqId)
+
+  kv.mu.Lock()
+  dup,exists := kv.cache[clientId]
+  kv.mu.Unlock()
+
+  if exists && dup.ReqId == op.ReqId {
+    return dup.Val, dup.Err
+  }
+
+  kv.px.Start(seq, op)
+
+  to := InitTimeout
+  time.Sleep(to)
+
+  decided,val := kv.px.Status(seq)
+  for !decided || val != op {
+    if (decided && val != op) || (seq <= kv.lastAppliedSeq) {
+      kv.log("Seq=%d already decided", seq)
+      seq = kv.px.Max()+1
+      kv.px.Start(seq, op)
+    }
+
+    // kv.log("Retry w/ seq=%d", seq)
+    time.Sleep(to + RandMTime())
+    if to < 100 * time.Millisecond {
+      to *= 2
+    }
+
+    decided,val = kv.px.Status(seq)
+  }
+
+  kv.log("Seq=%d decided!", seq)
+
+  // block until seq op has been applied
+  for kv.lastAppliedSeq < seq {
+    time.Sleep(InitTimeout)
+  }
+
+  kv.mu.Lock()
+  result,exists := kv.cache[clientId]
+  kv.mu.Unlock()
+
+  kv.px.Done(seq)
+
+  if !exists {
+    // should not happen since assuming at most one outstanding get/put
+    return "", ErrInvalid
+  }
+
+  return result.Val, result.Err
+}
+
 func (kv *ShardKV) reconfig() {
 
+}
+
+func (kv *ShardKV) applyGet(key string) (string,Err) {
+  val, ok := kv.table[key]
+
+  if !ok {
+    return "",ErrNoKey
+  }
+
+  return val,OK
+}
+
+func (kv *ShardKV) applyPut(key string, val string, dohash bool) (string,Err) {
+  oldval, ok := kv.table[key]
+  if !ok {
+    oldval = ""
+  }
+
+  newval := val
+  if dohash {
+    newval = strconv.Itoa(int(hash(oldval + newval)))
+  }
+
+  kv.table[key] = newval
+
+  return oldval,OK
+}
+
+func (kv *ShardKV) applyOp(op *Op) (string,Err) {
+  // Return early for a noop
+  if op.Operation == Noop {
+    return "",ErrNoOp
+  }
+
+  clientId,reqNum := ParseReqId(op.ReqId)
+
+  // Find last operation from same client
+  kv.mu.Lock()
+  lastClientOp,exists := kv.cache[clientId]
+  kv.mu.Unlock()
+
+  if exists {
+    _,lastReqNum := ParseReqId(lastClientOp.ReqId)
+
+    // Don't double apply any operation
+    if reqNum <= lastReqNum {
+      kv.log("Already applied %d", reqNum)
+      return "",ErrAlreadyApplied
+    }
+  }
+
+  switch op.Operation {
+  case Get:
+    args := op.Args.(GetArgs)
+    return kv.applyGet(args.Key)
+  case Put:
+    args := op.Args.(PutArgs)
+    return kv.applyPut(args.Key, args.Value, args.DoHash)
+  }
+
+  // Should not reach this point
+  return "",ErrInvalid
+}
+
+func (kv *ShardKV) bg() {
+
+  timeout := InitTimeout
+
+  for kv.dead == false {
+
+    seq := kv.lastAppliedSeq+1
+    decided,result := kv.px.Status(seq)
+
+    if decided {
+      // apply the operation
+      op,_ := result.(Op)
+      val,err := kv.applyOp(&op)
+
+      kv.mu.Lock()
+      if err == OK || err == ErrNoKey {
+        clientId,_ := ParseReqId(op.ReqId)
+        kv.cache[clientId] = &Result{ReqId: op.ReqId, Val: val, Err: err}
+      }
+
+      kv.lastAppliedSeq += 1
+      kv.mu.Unlock()
+
+      kv.log("Apply %s from seq=%d", op.Operation, seq)
+
+      // reset timeout
+      timeout = InitTimeout
+
+    } else {
+      // kv.log("Retry for seq=%d", seq)
+
+      if timeout >= 1 * time.Second {
+        kv.log("Try noop for seq=%d", seq)
+        kv.px.Start(seq, Op{Operation: Noop})
+
+        // wait for noop to return
+        noopDone := false
+        for !noopDone {
+          noopDone,_ = kv.px.Status(seq)
+          time.Sleep(100 * time.Millisecond)
+        }
+      } else {
+        // wait before retrying
+        time.Sleep(timeout)
+
+        if timeout < 1 * time.Second {
+          // expotential backoff
+          timeout *= 2
+        }
+      }
+    }
+  }
 }
 
 //
@@ -103,6 +293,15 @@ func (kv *ShardKV) tick() {
   if newConfig.Num > kv.config.Num {
     kv.reconfig()
   }
+}
+
+func (kv *ShardKV) log(format string, a ...interface{}) (n int, err error) {
+  if ServerLog {
+    addr := "Srv#" + strconv.Itoa(kv.me)
+    gid := "GID#" + strconv.FormatInt(kv.gid, 10)
+    n, err = fmt.Printf(addr + "|" + gid + " >> " + format + "\n", a...)
+  }
+  return
 }
 
 // tell the server to shut itself down.
@@ -124,12 +323,18 @@ func (kv *ShardKV) kill() {
 func StartServer(gid int64, shardmasters []string,
                  servers []string, me int) *ShardKV {
   gob.Register(Op{})
+  gob.Register(PutArgs{})
+  gob.Register(GetArgs{})
 
   kv := new(ShardKV)
   kv.me = me
   kv.gid = gid
   kv.sm = shardmaster.MakeClerk(shardmasters)
   kv.config = kv.sm.Query(-1)
+
+  kv.table = make(map[string]string)
+  kv.cache = make(map[string]*Result)
+  kv.lastAppliedSeq = -1
 
   rpcs := rpc.NewServer()
   rpcs.Register(kv)
@@ -182,6 +387,8 @@ func StartServer(gid int64, shardmasters []string,
       time.Sleep(250 * time.Millisecond)
     }
   }()
+
+  go kv.bg()
 
   return kv
 }
