@@ -108,10 +108,10 @@ func (kv *ShardKV) resolveOp(op Op) (string,Err) {
   clientId,_ := ParseReqId(op.ReqId)
 
   kv.mu.Lock()
-  dup,exists := kv.cache[clientId]
+  dup,exists := kv.cache[op.ReqId]
   kv.mu.Unlock()
 
-  if exists && dup.ReqId == op.ReqId {
+  if exists {
     return dup.Val, dup.Err
   }
 
@@ -145,21 +145,19 @@ func (kv *ShardKV) resolveOp(op Op) (string,Err) {
   }
 
   kv.mu.Lock()
-  result,exists := kv.cache[clientId]
+  result,exists := kv.cache[op.ReqId]
   kv.mu.Unlock()
 
   kv.px.Done(seq)
 
   if !exists {
     // should not happen since assuming at most one outstanding get/put
+    error := fmt.Sprintf("Couldn't find result for op=%s, clientId=%s", op.Operation, clientId)
+    panic(error)
     return "", ErrInvalid
   }
 
   return result.Val, result.Err
-}
-
-func (kv *ShardKV) reconfig() {
-
 }
 
 func (kv *ShardKV) applyGet(key string) (string,Err) {
@@ -194,21 +192,14 @@ func (kv *ShardKV) applyOp(op *Op) (string,Err) {
     return "",ErrNoOp
   }
 
-  clientId,reqNum := ParseReqId(op.ReqId)
-
-  // Find last operation from same client
+  // Check if operation was already applied
   kv.mu.Lock()
-  lastClientOp,exists := kv.cache[clientId]
+  _,exists := kv.cache[op.ReqId]
   kv.mu.Unlock()
 
   if exists {
-    _,lastReqNum := ParseReqId(lastClientOp.ReqId)
-
-    // Don't double apply any operation
-    if reqNum <= lastReqNum {
-      kv.log("Already applied %d", reqNum)
-      return "",ErrAlreadyApplied
-    }
+    kv.log("Already applied %d", op.ReqId)
+    return "",ErrAlreadyApplied
   }
 
   switch op.Operation {
@@ -224,7 +215,7 @@ func (kv *ShardKV) applyOp(op *Op) (string,Err) {
   return "",ErrInvalid
 }
 
-func (kv *ShardKV) bg() {
+func (kv *ShardKV) logSync() {
 
   timeout := InitTimeout
 
@@ -240,8 +231,7 @@ func (kv *ShardKV) bg() {
 
       kv.mu.Lock()
       if err == OK || err == ErrNoKey {
-        clientId,_ := ParseReqId(op.ReqId)
-        kv.cache[clientId] = &Result{ReqId: op.ReqId, Val: val, Err: err}
+        kv.cache[op.ReqId] = &Result{ReqId: op.ReqId, Val: val, Err: err}
       }
 
       kv.lastAppliedSeq += 1
@@ -276,6 +266,12 @@ func (kv *ShardKV) bg() {
       }
     }
   }
+}
+
+func (kv *ShardKV) reconfig() {
+  // op := Op{Operation: Reconfig}
+
+
 }
 
 //
@@ -388,7 +384,7 @@ func StartServer(gid int64, shardmasters []string,
     }
   }()
 
-  go kv.bg()
+  go kv.logSync()
 
   return kv
 }
