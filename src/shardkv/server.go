@@ -16,7 +16,7 @@ import "strconv"
 import "strings"
 
 const (
-  ServerLog = true
+  ServerLog = false
   InitTimeout = 10 * time.Millisecond
 )
 
@@ -96,12 +96,6 @@ func (kv *ShardKV) Get(args *GetArgs, reply *GetReply) error {
 
   kv.log("Get receive, key=%s, reqId=%s", key, reqId)
 
-  if !CorrectGroup(key, kv.gid, kv.config) {
-    kv.log("Wrong group")
-    reply.Err = ErrWrongGroup
-    return nil
-  }
-
   op := Op{Operation: Get, Args: *args, ReqId: reqId, ConfigNum: kv.config.Num}
 
   val,err := kv.resolveOp(op)
@@ -122,12 +116,6 @@ func (kv *ShardKV) Put(args *PutArgs, reply *PutReply) error {
   reqId := args.ReqId
 
   kv.log("Put receive, key=%s, val=%s, reqId=%s", key, val, reqId)
-
-  if !CorrectGroup(key, kv.gid, kv.config) {
-    kv.log("Wrong group")
-    reply.Err = ErrWrongGroup
-    return nil
-  }
 
   op := Op{Operation: Put, Args: *args, ReqId: reqId, ConfigNum: kv.config.Num}
 
@@ -219,16 +207,18 @@ func (kv *ShardKV) resolveOp(op Op) (string,Err) {
   kv.px.Done(seq)
 
   if !exists {
-    // should not happen since assuming at most one outstanding get/put
-    error := fmt.Sprintf("Couldn't find result for op=%s, reqId=%s", op.Operation, op.ReqId)
-    panic(error)
-    return "", ErrInvalid
+    kv.log("Couldn't find result for op=%s, reqId=%s, assume ErrWrongGroup", op.Operation, op.ReqId)
+    return "", ErrWrongGroup
   }
 
   return result.Val, result.Err
 }
 
 func (kv *ShardKV) applyGet(key string) (string,Err) {
+  if !CorrectGroup(key, kv.gid, kv.config) {
+    return "",ErrWrongGroup
+  }
+
   val, ok := kv.table[key]
 
   if !ok {
@@ -239,6 +229,10 @@ func (kv *ShardKV) applyGet(key string) (string,Err) {
 }
 
 func (kv *ShardKV) applyPut(key string, val string, dohash bool) (string,Err) {
+  if !CorrectGroup(key, kv.gid, kv.config) {
+    return "",ErrWrongGroup
+  }
+
   oldval, ok := kv.table[key]
   if !ok {
     oldval = ""
@@ -323,10 +317,6 @@ func (kv *ShardKV) applyOp(op *Op) (string,Err) {
     return "",ErrAlreadyApplied
   }
 
-  if op.Operation != Reconfig && op.ConfigNum != kv.config.Num {
-    return "",ErrWrongGroup
-  }
-
   switch op.Operation {
   case Get:
     args := op.Args.(GetArgs)
@@ -358,7 +348,7 @@ func (kv *ShardKV) logSync() {
       val,err := kv.applyOp(&op)
 
       kv.mu.Lock()
-      if err == OK || err == ErrNoKey || err == ErrWrongGroup {
+      if err == OK || err == ErrNoKey {
         kv.reqs[op.ReqId] = &Result{ReqId: op.ReqId, Val: val, Err: err}
       }
 
@@ -366,7 +356,7 @@ func (kv *ShardKV) logSync() {
       kv.mu.Unlock()
 
       if err != ErrAlreadyApplied {
-        // kv.log("Applied %s of reqId=%s", op.Operation, op.ReqId)
+        kv.log("Applied %s of reqId=%s", op.Operation, op.ReqId)
       } else {
         // kv.log("Already applied %s", op.ReqId)
       }
@@ -477,7 +467,7 @@ func StartServer(gid int64, shardmasters []string,
   kv.me = me
   kv.gid = gid
   kv.sm = shardmaster.MakeClerk(shardmasters)
-  kv.config = kv.sm.Query(-1)
+  kv.config = kv.sm.Query(0)
 
   kv.table = make(map[string]string)
   kv.tableCache = make(map[int]map[string]string)

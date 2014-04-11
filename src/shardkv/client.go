@@ -9,6 +9,10 @@ import "strconv"
 import "crypto/rand"
 import "math/big"
 
+const (
+  ClientLog = false
+)
+
 type Clerk struct {
   mu sync.Mutex // one RPC at a time
   sm *shardmaster.Clerk
@@ -84,6 +88,15 @@ func (ck *Clerk) reqId() string {
   return ck.id + ":" + strconv.Itoa(int(ck.counter))
 }
 
+func (ck *Clerk) log(format string, a ...interface{}) (n int, err error) {
+  if ClientLog {
+    addr := "ClientID#" + ck.id + "|"
+    reqId := "ReqId#" + strconv.FormatUint(ck.counter, 10)
+    n, err = fmt.Printf(addr + reqId + " ** " + format + "\n", a...)
+  }
+  return
+}
+
 //
 // fetch the current value for a key.
 // returns "" if the key does not exist.
@@ -95,7 +108,6 @@ func (ck *Clerk) Get(key string) string {
 
   // You'll have to modify Get().
   reqId := ck.reqId()
-  fmt.Printf("Client GET key=%s, reqId=%s\n", key, reqId)
 
   for {
     shard := key2shard(key)
@@ -116,7 +128,6 @@ func (ck *Clerk) Get(key string) string {
           return reply.Value
         }
         if ok && (reply.Err == ErrWrongGroup) {
-          reqId = ck.reqId()
           break
         }
       }
@@ -136,7 +147,6 @@ func (ck *Clerk) PutExt(key string, value string, dohash bool) string {
 
   // You'll have to modify Put().
   reqId := ck.reqId()
-  fmt.Printf("Client PUT key=%s, reqId=%s\n", key, reqId)
 
   for {
     shard := key2shard(key)
@@ -159,7 +169,6 @@ func (ck *Clerk) PutExt(key string, value string, dohash bool) string {
           return reply.PreviousValue
         }
         if ok && (reply.Err == ErrWrongGroup) {
-          reqId = ck.reqId()
           break
         }
       }
