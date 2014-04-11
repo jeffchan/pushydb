@@ -16,7 +16,7 @@ import "strconv"
 import "strings"
 
 const (
-  ServerLog = true
+  ServerLog = false
   InitTimeout = 10 * time.Millisecond
   ReconfigReqIdPrefix = "reconfig:gid="
 )
@@ -42,6 +42,14 @@ func CorrectGroup(key string, gid int64, config shardmaster.Config) bool {
 
 func CopyTable(src map[string]string) map[string]string {
   dst := make(map[string]string)
+  for k,v := range src {
+    dst[k] = v
+  }
+  return dst
+}
+
+func CopyReqs(src map[string]*Result) map[string]*Result {
+  dst := make(map[string]*Result)
   for k,v := range src {
     dst[k] = v
   }
@@ -107,6 +115,7 @@ type ShardKV struct {
   table map[string]string // key -> value
   tableCache map[int]map[string]string // confignum -> key -> value
   reqs map[string]*Result
+  reqsCache map[int]map[string]*Result
   lastAppliedSeq int
 }
 
@@ -160,16 +169,17 @@ func (kv *ShardKV) Transfer(args *TransferArgs, reply *TransferReply) error {
   shard := args.Shard
   // kv.log("Transfer receive, config=%d, shard=%d", configNum, shard)
 
-  cache,exists := kv.tableCache[configNum]
+  tableCache,tableExists := kv.tableCache[configNum]
+  reqsCache,reqExists := kv.reqsCache[configNum]
 
-  if !exists {
+  if !tableExists || !reqExists {
     // kv.log("wrong view %d", kv.config.Num)
     reply.Err = ErrWrongView
     return nil
   }
 
-  reply.Table = FilterTable(cache, shard)
-  reply.Reqs = FilterReqs(kv.reqs)
+  reply.Table = FilterTable(tableCache, shard)
+  reply.Reqs = FilterReqs(reqsCache)
   reply.Err = OK
 
   // kv.log("Transfer return, config=%d, shard=%d", configNum, shard)
@@ -278,6 +288,7 @@ func (kv *ShardKV) applyReconfig(fromConfigNum int, toConfigNum int) (string,Err
   }
 
   kv.tableCache[old.Num] = CopyTable(kv.table)
+  kv.reqsCache[old.Num] = CopyReqs(kv.reqs)
 
   for shard,newGid := range next.Shards {
     oldGid := old.Shards[shard]
@@ -291,7 +302,7 @@ func (kv *ShardKV) applyReconfig(fromConfigNum int, toConfigNum int) (string,Err
           ok := call(server, "ShardKV.Transfer", args, &reply)
           // kv.log("transfer rpc ok=%s, server=%s", ok, server)
           if ok && reply.Err == OK {
-            // kv.log("table = %s", reply.Table)
+            kv.log("Got table = %s, reqs = ", reply.Table, reply.Reqs)
             kv.mergeTable(reply.Table)
             kv.mergeReqs(reply.Reqs)
             fetched = true
@@ -491,6 +502,7 @@ func StartServer(gid int64, shardmasters []string,
   kv.table = make(map[string]string)
   kv.tableCache = make(map[int]map[string]string)
   kv.reqs = make(map[string]*Result)
+  kv.reqsCache = make(map[int]map[string]*Result)
   kv.lastAppliedSeq = -1
 
   rpcs := rpc.NewServer()
