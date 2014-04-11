@@ -44,7 +44,7 @@ func cleanup(sa [][]*ShardKV) {
 
 func setup(tag string, unreliable bool) ([]string, []int64, [][]string, [][]*ShardKV, func()) {
   runtime.GOMAXPROCS(4)
-  
+
   const nmasters = 3
   var sma []*shardmaster.ShardMaster = make([]*shardmaster.ShardMaster, nmasters)
   var smh []string = make([]string, nmasters)
@@ -122,7 +122,7 @@ func TestBasic(t *testing.T) {
       ck.Put(keys[i], vals[i])
     }
   }
-  
+
   // are keys still there after leaves?
   for g := 0; g < len(gids)-1; g++ {
     mck.Leave(gids[g])
@@ -160,7 +160,7 @@ func TestMove(t *testing.T) {
   // add group 1.
   mck.Join(gids[1], ha[1])
   time.Sleep(5 * time.Second)
-  
+
   // check that keys are still there.
   for i := 0; i < shardmaster.NShards; i++ {
     if ck.Get(string('0'+i)) != string('0'+i) {
@@ -241,7 +241,7 @@ func TestLimp(t *testing.T) {
       ck.Put(keys[i], vals[i])
     }
   }
-  
+
   // are keys still there after leaves?
   for g := 0; g < len(gids)-1; g++ {
     mck.Leave(gids[g])
@@ -294,7 +294,7 @@ func doConcurrent(t *testing.T, unreliable bool) {
         v = ck.Get(key)
         if v != last {
           ok = false
-          t.Fatalf("Get(%v) expected %v got %v\n", key, last, v)
+          t.Fatalf("Get(%v) expected %v got %v, prev_put=%v\n", key, last, v, nv)
         }
 
         mymck.Move(rand.Int() % shardmaster.NShards,

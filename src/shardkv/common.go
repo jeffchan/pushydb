@@ -17,6 +17,7 @@ const (
   ErrAlreadyApplied = "ErrAlreadyApplied"
   ErrNoOp = "ErrNoOp"
   ErrInvalid = "ErrInvalid"
+  ErrWrongView = "ErrWrongView"
 )
 type Err string
 
@@ -40,6 +41,22 @@ type GetArgs struct {
 type GetReply struct {
   Err Err
   Value string
+}
+
+type ReconfigArgs struct {
+  FromConfigNum int
+  ToConfigNum int
+}
+
+type TransferArgs struct {
+  ConfigNum int
+  Shard int
+}
+
+type TransferReply struct {
+  Err Err
+  Table map[string]string
+  Reqs map[string]*Result
 }
 
 func hash(s string) uint32 {

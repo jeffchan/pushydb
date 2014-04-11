@@ -42,3 +42,15 @@ what happens when you apply
 			GID
 		}
 	}
+
+
+detect view change
+cache shards that have moved -- reference by NEW config num ... confignum -> map[string][string]
+figure out what shards i need to retrieve
+request and save kv table from dest = Old.Groups[Old.Shards[i]]
+request and merge dup requests table
+Op {Operation: Reconfig, OldConfig: old, NewConfig: New}
+TransferArgs {configNum, shard#s }
+TransferReply {shards, }
+
+* dest might not have the new config in cached shards yet... don't reply. src retries

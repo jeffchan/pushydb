@@ -16,7 +16,7 @@ import "strconv"
 import "strings"
 
 const (
-  ServerLog = false
+  ServerLog = true
   InitTimeout = 10 * time.Millisecond
 )
 
@@ -31,6 +31,22 @@ func RandMTime() time.Duration {
   return time.Duration(rand.Int() % 100)  * time.Millisecond
 }
 
+func CorrectGroup(key string, gid int64, config shardmaster.Config) bool {
+  shard := key2shard(key)
+  if shard >= shardmaster.NShards {
+    return false
+  }
+  return config.Shards[shard] == gid
+}
+
+func CopyTable(src map[string]string) map[string]string {
+  dst := make(map[string]string)
+  for k,v := range src {
+    dst[k] = v
+  }
+  return dst
+}
+
 const (
   Put = "Put"
   Get = "Get"
@@ -43,6 +59,7 @@ type Op struct {
   Operation Operation
   Args interface{}
   ReqId string
+  ConfigNum int
 }
 
 type Result struct {
@@ -62,53 +79,104 @@ type ShardKV struct {
 
   gid int64 // my replica group ID
   config shardmaster.Config
+  transfer sync.Mutex
 
-  table map[string]string
-  cache map[string]*Result
+  table map[string]string // key -> value
+  tableCache map[int]map[string]string // confignum -> key -> value
+  reqs map[string]*Result
   lastAppliedSeq int
 }
 
 func (kv *ShardKV) Get(args *GetArgs, reply *GetReply) error {
+  kv.transfer.Lock()
+  defer kv.transfer.Unlock()
+
   key := args.Key
-  clientId,_ := ParseReqId(args.ReqId)
+  reqId := args.ReqId
 
-  kv.log("Get receive, key=%s, clientId=%s", key, clientId)
+  kv.log("Get receive, key=%s, reqId=%s", key, reqId)
 
-  op := Op{Operation: Get, Args: *args, ReqId: args.ReqId}
+  if !CorrectGroup(key, kv.gid, kv.config) {
+    kv.log("Wrong group")
+    reply.Err = ErrWrongGroup
+    return nil
+  }
+
+  op := Op{Operation: Get, Args: *args, ReqId: reqId, ConfigNum: kv.config.Num}
 
   val,err := kv.resolveOp(op)
   reply.Value = val
   reply.Err = err
 
-  kv.log("Get return, key=%s, val=%s, clientId=%s", key, val, clientId)
+  kv.log("Get return, key=%s, val=%s, reqId=%s", key, val, reqId)
 
   return nil
 }
 
 func (kv *ShardKV) Put(args *PutArgs, reply *PutReply) error {
+  kv.transfer.Lock()
+  defer kv.transfer.Unlock()
+
   key := args.Key
   val := args.Value
-  clientId,_ := ParseReqId(args.ReqId)
+  reqId := args.ReqId
 
-  kv.log("Put receive, key=%s, val=%s, clientId=%s", key, val, clientId)
+  kv.log("Put receive, key=%s, val=%s, reqId=%s", key, val, reqId)
 
-  op := Op{Operation: Put, Args: *args, ReqId: args.ReqId}
+  if !CorrectGroup(key, kv.gid, kv.config) {
+    kv.log("Wrong group")
+    reply.Err = ErrWrongGroup
+    return nil
+  }
+
+  op := Op{Operation: Put, Args: *args, ReqId: reqId, ConfigNum: kv.config.Num}
 
   prev,err := kv.resolveOp(op)
   reply.PreviousValue = prev
   reply.Err = err
 
-  kv.log("Put return, key=%s, val=%s, prev=%s, clientId=%s", key, val, prev, clientId)
+  kv.log("Put return, key=%s, val=%s, prev=%s, reqId=%s", key, val, prev, reqId)
+
+  return nil
+}
+
+func (kv *ShardKV) Transfer(args *TransferArgs, reply *TransferReply) error {
+
+  kv.mu.Lock()
+  defer kv.mu.Unlock()
+
+  configNum := args.ConfigNum
+  shard := args.Shard
+  // kv.log("Transfer receive, config=%d, shard=%d", configNum, shard)
+
+  cache,exists := kv.tableCache[configNum]
+
+  if !exists {
+    // kv.log("wrong view %d", kv.config.Num)
+    reply.Err = ErrWrongView
+    return nil
+  }
+
+  result := make(map[string]string)
+  for k,v := range cache {
+    if key2shard(k) == shard {
+      result[k] = v
+    }
+  }
+  reply.Table = result
+  reply.Reqs = kv.reqs
+  reply.Err = OK
+
+  // kv.log("Transfer return, config=%d, shard=%d", configNum, shard)
 
   return nil
 }
 
 func (kv *ShardKV) resolveOp(op Op) (string,Err) {
   seq := kv.px.Max()+1
-  clientId,_ := ParseReqId(op.ReqId)
 
   kv.mu.Lock()
-  dup,exists := kv.cache[op.ReqId]
+  dup,exists := kv.reqs[op.ReqId]
   kv.mu.Unlock()
 
   if exists {
@@ -137,7 +205,7 @@ func (kv *ShardKV) resolveOp(op Op) (string,Err) {
     decided,val = kv.px.Status(seq)
   }
 
-  kv.log("Seq=%d decided!", seq)
+  // kv.log("Seq=%d decided!", seq)
 
   // block until seq op has been applied
   for kv.lastAppliedSeq < seq {
@@ -145,14 +213,14 @@ func (kv *ShardKV) resolveOp(op Op) (string,Err) {
   }
 
   kv.mu.Lock()
-  result,exists := kv.cache[op.ReqId]
+  result,exists := kv.reqs[op.ReqId]
   kv.mu.Unlock()
 
   kv.px.Done(seq)
 
   if !exists {
     // should not happen since assuming at most one outstanding get/put
-    error := fmt.Sprintf("Couldn't find result for op=%s, clientId=%s", op.Operation, clientId)
+    error := fmt.Sprintf("Couldn't find result for op=%s, reqId=%s", op.Operation, op.ReqId)
     panic(error)
     return "", ErrInvalid
   }
@@ -186,6 +254,60 @@ func (kv *ShardKV) applyPut(key string, val string, dohash bool) (string,Err) {
   return oldval,OK
 }
 
+func (kv *ShardKV) applyReconfig(fromConfigNum int, toConfigNum int) (string,Err) {
+
+  old := kv.sm.Query(fromConfigNum)
+  next := kv.sm.Query(toConfigNum)
+
+  kv.config = next
+
+  // Skip the initial blank config
+  if fromConfigNum == 0 {
+    return "",OK
+  }
+
+  kv.tableCache[old.Num] = CopyTable(kv.table)
+
+  for shard,newGid := range next.Shards {
+    oldGid := old.Shards[shard]
+    if oldGid != newGid && newGid == kv.gid {
+      // request shards from replicas in another group
+      fetched := false
+      for !fetched && kv.dead == false {
+        for _,server := range old.Groups[oldGid] {
+          args := &TransferArgs{ConfigNum: old.Num, Shard: shard}
+          var reply TransferReply
+          ok := call(server, "ShardKV.Transfer", args, &reply)
+          // kv.log("transfer rpc ok=%s, server=%s", ok, server)
+          if ok && reply.Err == OK {
+            // kv.log("table = %s", reply.Table)
+            kv.mergeTable(reply.Table)
+            kv.mergeReqs(reply.Reqs)
+            fetched = true
+            break
+          }
+
+          time.Sleep(100 * time.Millisecond)
+        }
+      }
+    }
+  }
+
+  return "",OK
+}
+
+func (kv *ShardKV) mergeTable(incoming map[string]string) {
+  for k,v := range incoming {
+    kv.table[k] = v
+  }
+}
+
+func (kv *ShardKV) mergeReqs(incoming map[string]*Result) {
+  for k,v := range incoming {
+    kv.reqs[k] = v
+  }
+}
+
 func (kv *ShardKV) applyOp(op *Op) (string,Err) {
   // Return early for a noop
   if op.Operation == Noop {
@@ -194,12 +316,15 @@ func (kv *ShardKV) applyOp(op *Op) (string,Err) {
 
   // Check if operation was already applied
   kv.mu.Lock()
-  _,exists := kv.cache[op.ReqId]
+  _,exists := kv.reqs[op.ReqId]
   kv.mu.Unlock()
 
   if exists {
-    kv.log("Already applied %d", op.ReqId)
     return "",ErrAlreadyApplied
+  }
+
+  if op.Operation != Reconfig && op.ConfigNum != kv.config.Num {
+    return "",ErrWrongGroup
   }
 
   switch op.Operation {
@@ -209,6 +334,9 @@ func (kv *ShardKV) applyOp(op *Op) (string,Err) {
   case Put:
     args := op.Args.(PutArgs)
     return kv.applyPut(args.Key, args.Value, args.DoHash)
+  case Reconfig:
+    args := op.Args.(ReconfigArgs)
+    return kv.applyReconfig(args.FromConfigNum, args.ToConfigNum)
   }
 
   // Should not reach this point
@@ -230,14 +358,18 @@ func (kv *ShardKV) logSync() {
       val,err := kv.applyOp(&op)
 
       kv.mu.Lock()
-      if err == OK || err == ErrNoKey {
-        kv.cache[op.ReqId] = &Result{ReqId: op.ReqId, Val: val, Err: err}
+      if err == OK || err == ErrNoKey || err == ErrWrongGroup {
+        kv.reqs[op.ReqId] = &Result{ReqId: op.ReqId, Val: val, Err: err}
       }
 
       kv.lastAppliedSeq += 1
       kv.mu.Unlock()
 
-      kv.log("Apply %s from seq=%d", op.Operation, seq)
+      if err != ErrAlreadyApplied {
+        // kv.log("Applied %s of reqId=%s", op.Operation, op.ReqId)
+      } else {
+        // kv.log("Already applied %s", op.ReqId)
+      }
 
       // reset timeout
       timeout = InitTimeout
@@ -268,9 +400,21 @@ func (kv *ShardKV) logSync() {
   }
 }
 
-func (kv *ShardKV) reconfig() {
-  // op := Op{Operation: Reconfig}
+func (kv *ShardKV) prepareReconfig(oldConfig shardmaster.Config, newConfig shardmaster.Config) {
+  if oldConfig.Num >= newConfig.Num {
+    return
+  }
 
+  reqId := strconv.FormatInt(kv.gid, 10) + "|" + strconv.Itoa(oldConfig.Num) + "->" + strconv.Itoa(newConfig.Num)
+  _,exists := kv.reqs[reqId]
+  if exists {
+    return
+  }
+
+  args := ReconfigArgs{FromConfigNum: oldConfig.Num, ToConfigNum: newConfig.Num}
+  op := Op{Operation: Reconfig, Args: args, ReqId: reqId, ConfigNum: oldConfig.Num}
+
+  kv.resolveOp(op)
 
 }
 
@@ -279,23 +423,28 @@ func (kv *ShardKV) reconfig() {
 // if so, re-configure.
 //
 func (kv *ShardKV) tick() {
-  kv.mu.Lock()
-  defer kv.mu.Unlock()
+  kv.transfer.Lock()
+  defer kv.transfer.Unlock()
 
   // Query shardmaster for latest config
   newConfig := kv.sm.Query(-1)
 
-  // Reconfigure if there's a new configuration
-  if newConfig.Num > kv.config.Num {
-    kv.reconfig()
+  // kv.log("tick: current=%d, latest=%d", kv.config.Num, newConfig.Num)
+
+  for (newConfig.Num - kv.config.Num) >= 1 {
+
+    kv.prepareReconfig(kv.config, kv.sm.Query(kv.config.Num+1))
+
+    newConfig = kv.sm.Query(-1)
   }
 }
 
 func (kv *ShardKV) log(format string, a ...interface{}) (n int, err error) {
   if ServerLog {
-    addr := "Srv#" + strconv.Itoa(kv.me)
-    gid := "GID#" + strconv.FormatInt(kv.gid, 10)
-    n, err = fmt.Printf(addr + "|" + gid + " >> " + format + "\n", a...)
+    addr := "Srv#" + strconv.Itoa(kv.me) + "|"
+    gid := "GID#" + strconv.FormatInt(kv.gid, 10) + "|"
+    config := "Config#" + strconv.Itoa(kv.config.Num)
+    n, err = fmt.Printf(addr + gid + config + " >> " + format + "\n", a...)
   }
   return
 }
@@ -321,6 +470,8 @@ func StartServer(gid int64, shardmasters []string,
   gob.Register(Op{})
   gob.Register(PutArgs{})
   gob.Register(GetArgs{})
+  gob.Register(ReconfigArgs{})
+  gob.Register(TransferArgs{})
 
   kv := new(ShardKV)
   kv.me = me
@@ -329,7 +480,8 @@ func StartServer(gid int64, shardmasters []string,
   kv.config = kv.sm.Query(-1)
 
   kv.table = make(map[string]string)
-  kv.cache = make(map[string]*Result)
+  kv.tableCache = make(map[int]map[string]string)
+  kv.reqs = make(map[string]*Result)
   kv.lastAppliedSeq = -1
 
   rpcs := rpc.NewServer()

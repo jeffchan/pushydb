@@ -94,10 +94,11 @@ func (ck *Clerk) Get(key string) string {
   defer ck.mu.Unlock()
 
   // You'll have to modify Get().
+  reqId := ck.reqId()
+  fmt.Printf("Client GET key=%s, reqId=%s\n", key, reqId)
 
   for {
     shard := key2shard(key)
-    reqId := ck.reqId()
 
     gid := ck.config.Shards[shard]
 
@@ -115,6 +116,7 @@ func (ck *Clerk) Get(key string) string {
           return reply.Value
         }
         if ok && (reply.Err == ErrWrongGroup) {
+          reqId = ck.reqId()
           break
         }
       }
@@ -133,10 +135,11 @@ func (ck *Clerk) PutExt(key string, value string, dohash bool) string {
   defer ck.mu.Unlock()
 
   // You'll have to modify Put().
+  reqId := ck.reqId()
+  fmt.Printf("Client PUT key=%s, reqId=%s\n", key, reqId)
 
   for {
     shard := key2shard(key)
-    reqId := ck.reqId()
 
     gid := ck.config.Shards[shard]
 
@@ -156,6 +159,7 @@ func (ck *Clerk) PutExt(key string, value string, dohash bool) string {
           return reply.PreviousValue
         }
         if ok && (reply.Err == ErrWrongGroup) {
+          reqId = ck.reqId()
           break
         }
       }
