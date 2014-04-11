@@ -16,8 +16,9 @@ import "strconv"
 import "strings"
 
 const (
-  ServerLog = false
+  ServerLog = true
   InitTimeout = 10 * time.Millisecond
+  ReconfigReqIdPrefix = "reconfig:gid="
 )
 
 func ParseReqId(reqId string) (string,uint64) {
@@ -45,6 +46,28 @@ func CopyTable(src map[string]string) map[string]string {
     dst[k] = v
   }
   return dst
+}
+
+func FilterTable(src map[string]string, shard int) map[string]string {
+  // Filter k-v table by shard
+  result := make(map[string]string)
+  for k,v := range src {
+    if key2shard(k) == shard {
+      result[k] = v
+    }
+  }
+  return result
+}
+
+func FilterReqs(src map[string]*Result) map[string]*Result {
+  // Filter request tables to exclude reconfigs
+  result := make(map[string]*Result)
+  for k,v := range src {
+    if !strings.Contains(v.ReqId, ReconfigReqIdPrefix) {
+      result[k] = v
+    }
+  }
+  return result
 }
 
 const (
@@ -102,7 +125,7 @@ func (kv *ShardKV) Get(args *GetArgs, reply *GetReply) error {
   reply.Value = val
   reply.Err = err
 
-  kv.log("Get return, key=%s, val=%s, reqId=%s", key, val, reqId)
+  kv.log("Get return, key=%s, val=%s, reqId=%s, err=%s", key, val, reqId, err)
 
   return nil
 }
@@ -123,7 +146,7 @@ func (kv *ShardKV) Put(args *PutArgs, reply *PutReply) error {
   reply.PreviousValue = prev
   reply.Err = err
 
-  kv.log("Put return, key=%s, val=%s, prev=%s, reqId=%s", key, val, prev, reqId)
+  kv.log("Put return, key=%s, val=%s, prev=%s, reqId=%s, err=%s", key, val, prev, reqId, err)
 
   return nil
 }
@@ -145,14 +168,8 @@ func (kv *ShardKV) Transfer(args *TransferArgs, reply *TransferReply) error {
     return nil
   }
 
-  result := make(map[string]string)
-  for k,v := range cache {
-    if key2shard(k) == shard {
-      result[k] = v
-    }
-  }
-  reply.Table = result
-  reply.Reqs = kv.reqs
+  reply.Table = FilterTable(cache, shard)
+  reply.Reqs = FilterReqs(kv.reqs)
   reply.Err = OK
 
   // kv.log("Transfer return, config=%d, shard=%d", configNum, shard)
@@ -358,7 +375,7 @@ func (kv *ShardKV) logSync() {
       if err != ErrAlreadyApplied {
         kv.log("Applied %s of reqId=%s", op.Operation, op.ReqId)
       } else {
-        // kv.log("Already applied %s", op.ReqId)
+        kv.log("Already applied %s of reqId=%s", op.Operation, op.ReqId)
       }
 
       // reset timeout
@@ -395,7 +412,9 @@ func (kv *ShardKV) prepareReconfig(oldConfig shardmaster.Config, newConfig shard
     return
   }
 
-  reqId := strconv.FormatInt(kv.gid, 10) + "|" + strconv.Itoa(oldConfig.Num) + "->" + strconv.Itoa(newConfig.Num)
+  reqId := ReconfigReqIdPrefix
+  reqId += strconv.FormatInt(kv.gid, 10) + ":"
+  reqId += strconv.Itoa(oldConfig.Num) + "->" + strconv.Itoa(newConfig.Num)
   _,exists := kv.reqs[reqId]
   if exists {
     return
