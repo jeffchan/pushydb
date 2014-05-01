@@ -1,3 +1,4 @@
-api.key
 pkg/
-lab*handin.tar.gz
+
+Thumbs.db
+.DS_Store
