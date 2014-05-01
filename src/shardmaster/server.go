@@ -13,6 +13,7 @@ import "math/rand"
 import "time"
 import "strconv"
 import "sort"
+import "reflect"
 
 const (
   Debug       = false
@@ -73,31 +74,6 @@ type Operation string
 type Op struct {
   Operation Operation
   Args      interface{}
-}
-
-func OpEquals(a Op, b Op) bool {
-  if a.Operation != b.Operation {
-    return false
-  }
-
-  if a.Operation == Join {
-    aArgs := a.Args.(JoinArgs)
-    bArgs := b.Args.(JoinArgs)
-
-    if len(aArgs.Servers) != len(bArgs.Servers) {
-      return false
-    }
-
-    for index, val := range aArgs.Servers {
-      if val != bArgs.Servers[index] {
-        return false
-      }
-    }
-
-    return aArgs.GID == bArgs.GID
-  }
-
-  return a.Args == b.Args
 }
 
 func RandMTime() time.Duration {
@@ -206,8 +182,8 @@ func (sm *ShardMaster) resolveOp(op Op) Config {
     valOp = val.(Op)
   }
 
-  for !decided || !OpEquals(valOp, op) {
-    if (decided && !OpEquals(valOp, op)) || (seq <= sm.lastAppliedSeq) {
+  for !decided || !reflect.DeepEqual(valOp, op) {
+    if (decided && !reflect.DeepEqual(valOp, op)) || (seq <= sm.lastAppliedSeq) {
       sm.log("Seq=%d already decided", seq)
       seq = sm.px.Max() + 1
       sm.px.Start(seq, op)
