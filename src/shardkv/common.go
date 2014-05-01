@@ -27,7 +27,7 @@ type Err string
 type Entry struct {
   Value       string
   Timestamp   time.Time
-  Expiration  time.Duration
+  TTL         time.Duration
   Subscribers []string
 }
 

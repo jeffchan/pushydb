@@ -45,7 +45,7 @@ func CopyEntry(src *Entry) *Entry {
   return &Entry{
     Value:       src.Value,
     Timestamp:   src.Timestamp,
-    Expiration:  src.Expiration,
+    TTL:         src.TTL,
     Subscribers: src.Subscribers,
   }
 }
