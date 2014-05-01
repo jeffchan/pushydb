@@ -8,8 +8,8 @@ import "fmt"
 // and maintains a little state.
 //
 type Clerk struct {
-  me string      // client's name (host:port)
-  server string  // viewservice's host:port
+  me     string // client's name (host:port)
+  server string // viewservice's host:port
 }
 
 func MakeClerk(me string, server string) *Clerk {
@@ -36,13 +36,13 @@ func MakeClerk(me string, server string) *Clerk {
 // please don't change this function.
 //
 func call(srv string, rpcname string,
-          args interface{}, reply interface{}) bool {
+  args interface{}, reply interface{}) bool {
   c, errx := rpc.Dial("unix", srv)
   if errx != nil {
     return false
   }
   defer c.Close()
-    
+
   err := c.Call(rpcname, args, reply)
   if err == nil {
     return true

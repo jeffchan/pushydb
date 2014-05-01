@@ -9,11 +9,11 @@ package lockservice
 //
 // Lock(lockname) returns OK=true if the lock is not held.
 // If it is held, it returns OK=false immediately.
-// 
+//
 type LockArgs struct {
   // Go's net/rpc requires that these field
   // names start with upper case letters!
-  Lockname string  // lock name
+  Lockname string // lock name
 }
 
 type LockReply struct {

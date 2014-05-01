@@ -1,9 +1,10 @@
 package paxos
 
 const (
-  OK = "OK"
+  OK     = "OK"
   Reject = "Reject"
 )
+
 type Err string
 
 //
@@ -11,15 +12,15 @@ type Err string
 //
 type PrepareArgs struct {
   Seq int
-  N int64
+  N   int64
 }
 
 type PrepareReply struct {
-  Seq int
-  Err Err
+  Seq            int
+  Err            Err
   HighestDoneSeq int
-  N int64
-  Val interface{}
+  N              int64
+  Val            interface{}
 }
 
 //
@@ -27,15 +28,15 @@ type PrepareReply struct {
 //
 type AcceptArgs struct {
   Seq int
-  N int64
+  N   int64
   Val interface{}
 }
 
 type AcceptReply struct {
-  Seq int
-  Err Err
+  Seq            int
+  Err            Err
   HighestDoneSeq int
-  N int64
+  N              int64
 }
 
 //
@@ -47,7 +48,7 @@ type DecidedArgs struct {
 }
 
 type DecidedReply struct {
-  Seq int
-  Err Err
+  Seq            int
+  Err            Err
   HighestDoneSeq int
 }

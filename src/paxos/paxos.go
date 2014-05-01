@@ -36,42 +36,42 @@ const (
 )
 
 type Paxos struct {
-  mu sync.Mutex
-  l net.Listener
-  dead bool
+  mu         sync.Mutex
+  l          net.Listener
+  dead       bool
   unreliable bool
-  rpcCount int
-  peers []string
-  me int // index into peers[]
-  addr string
-  majority int
+  rpcCount   int
+  peers      []string
+  me         int // index into peers[]
+  addr       string
+  majority   int
 
-  log map[int]*Instance
-  highestDone int
+  log            map[int]*Instance
+  highestDone    int
   highestDoneAll int
 }
 
 type Instance struct {
-  seq int
+  seq        int
   decidedVal interface{}
 
   // Acceptor's state
-  prepareN int64
-  acceptedN int64
+  prepareN    int64
+  acceptedN   int64
   acceptedVal interface{}
 }
 
 func sleepRand() {
-  time.Sleep(time.Duration(rand.Int() % 100) * time.Millisecond)
+  time.Sleep(time.Duration(rand.Int()%100) * time.Millisecond)
 }
 
 func (px *Paxos) n() int64 {
-  return time.Now().UnixNano() * int64(len(px.peers)) + int64(px.me)
+  return time.Now().UnixNano()*int64(len(px.peers)) + int64(px.me)
 }
 
 func (px *Paxos) x(format string, a ...interface{}) (n int, err error) {
   if Log {
-    n, err = fmt.Printf(px.shortAddr() + ": " + format + "\n", a...)
+    n, err = fmt.Printf(px.shortAddr()+": "+format+"\n", a...)
   }
   return
 }
@@ -90,7 +90,7 @@ func (px *Paxos) Propose(seq int, val interface{}) {
     var maxN int64
     var maxVal interface{}
     prepareCount := 0
-    for _,srv := range px.peers {
+    for _, srv := range px.peers {
       args := PrepareArgs{seq, n}
       var reply PrepareReply
       reply.Seq = seq
@@ -120,7 +120,7 @@ func (px *Paxos) Propose(seq int, val interface{}) {
 
     // Send accept(n, v')
     acceptCount := 0
-    for _,srv := range px.peers {
+    for _, srv := range px.peers {
       args := AcceptArgs{seq, n, maxVal}
       var reply AcceptReply
       reply.Seq = seq
@@ -142,7 +142,7 @@ func (px *Paxos) Propose(seq int, val interface{}) {
     // Send decided(v')
     min := math.MaxInt32
     allCount := 0
-    for _,srv := range px.peers {
+    for _, srv := range px.peers {
       args := DecidedArgs{seq, maxVal}
       var reply DecidedReply
       reply.Seq = seq
@@ -279,7 +279,7 @@ func (px *Paxos) getInstance(seq int) *Instance {
   px.mu.Lock()
   defer px.mu.Unlock()
 
-  _,ok := px.log[seq]
+  _, ok := px.log[seq]
   if !ok {
     px.log[seq] = MakeInstance(seq)
   }
@@ -291,7 +291,7 @@ func (px *Paxos) free(min int) {
   defer px.mu.Unlock()
 
   px.highestDoneAll = min
-  for key,_ := range px.log {
+  for key, _ := range px.log {
     if key <= min {
       delete(px.log, key)
     }
@@ -337,7 +337,7 @@ func (px *Paxos) Max() int {
   defer px.mu.Unlock()
 
   maxKey := -1
-  for key,_ := range px.log {
+  for key, _ := range px.log {
     if key > maxKey {
       maxKey = key
     }
@@ -402,7 +402,6 @@ func (px *Paxos) Status(seq int) (bool, interface{}) {
   return true, it.decidedVal
 }
 
-
 //
 // tell the peer to shut itself down.
 // for testing.
@@ -441,9 +440,9 @@ func Make(peers []string, me int, rpcs *rpc.Server) *Paxos {
     // prepare to receive connections from clients.
     // change "unix" to "tcp" to use over a network.
     os.Remove(peers[me]) // only needed for "unix"
-    l, e := net.Listen("unix", peers[me]);
+    l, e := net.Listen("unix", peers[me])
     if e != nil {
-      log.Fatal("listen error: ", e);
+      log.Fatal("listen error: ", e)
     }
     px.l = l
 
@@ -455,10 +454,10 @@ func Make(peers []string, me int, rpcs *rpc.Server) *Paxos {
       for px.dead == false {
         conn, err := px.l.Accept()
         if err == nil && px.dead == false {
-          if px.unreliable && (rand.Int63() % 1000) < 100 {
+          if px.unreliable && (rand.Int63()%1000) < 100 {
             // discard the request.
             conn.Close()
-          } else if px.unreliable && (rand.Int63() % 1000) < 200 {
+          } else if px.unreliable && (rand.Int63()%1000) < 200 {
             // process the request but force discard of reply.
             c1 := conn.(*net.UnixConn)
             f, _ := c1.File()
@@ -481,7 +480,6 @@ func Make(peers []string, me int, rpcs *rpc.Server) *Paxos {
       }
     }()
   }
-
 
   return px
 }

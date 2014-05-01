@@ -1,4 +1,5 @@
 package mapreduce
+
 import "container/list"
 import "fmt"
 
@@ -12,7 +13,7 @@ func MakeWorkerInfo(address string) *WorkerInfo {
   return w
 }
 
-func MakeDoJobArgs(file string, op JobType, job int, numOtherPhase int) *DoJobArgs{
+func MakeDoJobArgs(file string, op JobType, job int, numOtherPhase int) *DoJobArgs {
   args := &DoJobArgs{}
   args.File = file
   args.Operation = op
@@ -24,8 +25,8 @@ func MakeDoJobArgs(file string, op JobType, job int, numOtherPhase int) *DoJobAr
 func (mr *MapReduce) DispatchJobs() {
   for {
     // Wait for available worker and job
-    address := <- mr.idleChannel
-    args := <- mr.jobs
+    address := <-mr.idleChannel
+    args := <-mr.jobs
     go mr.SendJob(mr.Workers[address], args)
   }
 }
@@ -56,7 +57,7 @@ func (mr *MapReduce) KillWorkers() *list.List {
   for _, w := range mr.Workers {
     DPrintf("DoWork: shutdown %s\n", w.address)
     args := &ShutdownArgs{}
-    var reply ShutdownReply;
+    var reply ShutdownReply
     ok := call(w.address, "Worker.Shutdown", args, &reply)
     if ok == false {
       fmt.Printf("DoWork: RPC %s shutdown error\n", w.address)
@@ -69,7 +70,7 @@ func (mr *MapReduce) KillWorkers() *list.List {
 
 func (mr *MapReduce) RegisterWorkers() {
   for {
-    worker := <- mr.registerChannel
+    worker := <-mr.registerChannel
     mr.Workers[worker] = MakeWorkerInfo(worker)
     mr.idleChannel <- worker
     DPrintf("Registerd worker: " + worker)
@@ -89,7 +90,7 @@ func (mr *MapReduce) RunMaster() *list.List {
 
   // Wait for map jobs to complete
   for job := 0; job < mr.nMap; job++ {
-    <- mr.doneJobs[job]
+    <-mr.doneJobs[job]
   }
 
   // Assign reduce jobs
@@ -99,7 +100,7 @@ func (mr *MapReduce) RunMaster() *list.List {
 
   // Wait for reduce jobs to complete
   for job := 0; job < mr.nReduce; job++ {
-    <- mr.doneJobs[job]
+    <-mr.doneJobs[job]
   }
 
   return mr.KillWorkers()

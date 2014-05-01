@@ -3,41 +3,43 @@ package kvpaxos
 import "hash/fnv"
 
 const (
-  OK = "OK"
-  ErrNoKey = "ErrNoKey"
-  ErrNoOp = "ErrNoOp"
+  OK                = "OK"
+  ErrNoKey          = "ErrNoKey"
+  ErrNoOp           = "ErrNoOp"
   ErrAlreadyApplied = "ErrAlreadyApplied"
-  ErrInvalid = "ErrInvalid"
+  ErrInvalid        = "ErrInvalid"
 )
+
 type Err string
 
 const (
-  Put = "Put"
+  Put     = "Put"
   PutHash = "PutHash"
-  Get = "Get"
-  Noop = "Noop"
+  Get     = "Get"
+  Noop    = "Noop"
 )
+
 type Operation string
 
 type PutArgs struct {
-  Key string
-  Value string
-  DoHash bool  // For PutHash
-  ReqId string
+  Key    string
+  Value  string
+  DoHash bool // For PutHash
+  ReqId  string
 }
 
 type PutReply struct {
-  Err Err
-  PreviousValue string   // For PutHash
+  Err           Err
+  PreviousValue string // For PutHash
 }
 
 type GetArgs struct {
-  Key string
+  Key   string
   ReqId string
 }
 
 type GetReply struct {
-  Err Err
+  Err   Err
   Value string
 }
 

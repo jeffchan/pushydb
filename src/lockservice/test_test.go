@@ -91,7 +91,7 @@ func TestPrimaryFail1(t *testing.T) {
   tl(t, ck, "d", true)
 
   p.kill()
-  
+
   tl(t, ck, "a", false)
   tu(t, ck, "a", true)
 
@@ -257,7 +257,7 @@ func TestPrimaryFail7(t *testing.T) {
   time.Sleep(1 * time.Second)
   tl(t, ck1, "b", true)
 
-  ok := <- ch
+  ok := <-ch
   if ok == false {
     t.Fatalf("re-sent Unlock did not return true")
   }
@@ -295,7 +295,7 @@ func TestPrimaryFail8(t *testing.T) {
   time.Sleep(1 * time.Second)
   tl(t, ck1, "a", true)
 
-  ok := <- ch
+  ok := <-ch
   if ok == false {
     t.Fatalf("re-sent Unlock did not return false")
   }
@@ -330,7 +330,7 @@ func TestBackupFail(t *testing.T) {
   tl(t, ck, "d", true)
 
   b.kill()
-  
+
   tl(t, ck, "a", false)
   tu(t, ck, "a", true)
 
@@ -361,9 +361,9 @@ func TestMany(t *testing.T) {
   var acks [nclients]bool
 
   for xi := 0; xi < nclients; xi++ {
-    go func(i int){
+    go func(i int) {
       ck := MakeClerk(phost, bhost)
-      rr := rand.New(rand.NewSource(int64(os.Getpid()+i)))
+      rr := rand.New(rand.NewSource(int64(os.Getpid() + i)))
       for done == false {
         locknum := (rr.Int() % nlocks)
         lockname := strconv.Itoa(locknum + (i * 1000))
@@ -392,7 +392,7 @@ func TestMany(t *testing.T) {
     }
     for locknum := 0; locknum < nlocks; locknum++ {
       lockname := strconv.Itoa(locknum + (xi * 1000))
-      locked := ! ck.Lock(lockname)
+      locked := !ck.Lock(lockname)
       if locked != state[xi][locknum] {
         t.Fatal("bad final state")
       }
@@ -416,13 +416,13 @@ func TestConcurrentCounts(t *testing.T) {
   const nlocks = 1
   done := false
   var acks [nclients]bool
-  var locks [nclients][nlocks] int
-  var unlocks [nclients][nlocks] int
+  var locks [nclients][nlocks]int
+  var unlocks [nclients][nlocks]int
 
   for xi := 0; xi < nclients; xi++ {
-    go func(i int){
+    go func(i int) {
       ck := MakeClerk(phost, bhost)
-      rr := rand.New(rand.NewSource(int64(os.Getpid()+i)))
+      rr := rand.New(rand.NewSource(int64(os.Getpid() + i)))
       for done == false {
         locknum := rr.Int() % nlocks
         lockname := strconv.Itoa(locknum)
@@ -462,7 +462,7 @@ func TestConcurrentCounts(t *testing.T) {
     locked := ck.Unlock(strconv.Itoa(locknum))
     // fmt.Printf("lock=%d nl=%d nu=%d locked=%v\n",
     //   locknum, nl, nu, locked)
-    if nl < nu || nl > nu + 1 {
+    if nl < nu || nl > nu+1 {
       t.Fatal("lock race 1")
     }
     if nl == nu && locked != false {

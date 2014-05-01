@@ -30,7 +30,6 @@ func port(tag string, host int) string {
   return s
 }
 
-
 func TestBasicFail(t *testing.T) {
   runtime.GOMAXPROCS(4)
 
@@ -51,7 +50,7 @@ func TestBasicFail(t *testing.T) {
   if vck.Primary() != s1.me {
     t.Fatal("first primary never formed view")
   }
-  
+
   ck.Put("111", "v1")
   check(ck, "111", "v1")
 
@@ -68,7 +67,7 @@ func TestBasicFail(t *testing.T) {
   fmt.Printf("Test: Add a backup ...\n")
 
   s2 := StartServer(vshost, port(tag, 2))
-  for i := 0; i < viewservice.DeadPings * 2; i++ {
+  for i := 0; i < viewservice.DeadPings*2; i++ {
     v, _ := vck.Get()
     if v.Backup == s2.me {
       break
@@ -96,7 +95,7 @@ func TestBasicFail(t *testing.T) {
   fmt.Printf("Test: Primary failure ...\n")
 
   s1.kill()
-  for i := 0; i < viewservice.DeadPings * 2; i++ {
+  for i := 0; i < viewservice.DeadPings*2; i++ {
     v, _ := vck.Get()
     if v.Primary == s2.me {
       break
@@ -167,7 +166,7 @@ func TestAtMostOnce(t *testing.T) {
     }
     time.Sleep(viewservice.PingInterval)
   }
-  
+
   // give p+b time to ack, initialize
   time.Sleep(viewservice.PingInterval * viewservice.DeadPings)
 
@@ -215,7 +214,7 @@ func TestFailPut(t *testing.T) {
   time.Sleep(time.Second)
   s3 := StartServer(vshost, port(tag, 3))
 
-  for i := 0; i < viewservice.DeadPings * 3; i++ {
+  for i := 0; i < viewservice.DeadPings*3; i++ {
     v, _ := vck.Get()
     if v.Primary != "" && v.Backup != "" {
       break
@@ -243,9 +242,9 @@ func TestFailPut(t *testing.T) {
   ck.Put("a", "aaa")
   check(ck, "a", "aaa")
 
-  for i := 0; i < viewservice.DeadPings * 3; i++ {
+  for i := 0; i < viewservice.DeadPings*3; i++ {
     v, _ := vck.Get()
-    if v.Viewnum > v1.Viewnum && v.Primary != ""  && v.Backup != "" {
+    if v.Viewnum > v1.Viewnum && v.Primary != "" && v.Backup != "" {
       break
     }
     time.Sleep(viewservice.PingInterval)
@@ -265,7 +264,7 @@ func TestFailPut(t *testing.T) {
   ck.Put("b", "bbb")
   check(ck, "b", "bbb")
 
-  for i := 0; i < viewservice.DeadPings * 3; i++ {
+  for i := 0; i < viewservice.DeadPings*3; i++ {
     v, _ := vck.Get()
     if v.Viewnum > v2.Viewnum && v.Primary != "" {
       break
@@ -313,7 +312,7 @@ func TestConcurrentSame(t *testing.T) {
     }
     time.Sleep(viewservice.PingInterval)
   }
-  
+
   // give p+b time to ack, initialize
   time.Sleep(viewservice.PingInterval * viewservice.DeadPings)
 
@@ -325,7 +324,7 @@ func TestConcurrentSame(t *testing.T) {
   for xi := 0; xi < nclients; xi++ {
     go func(i int) {
       ck := MakeClerk(vshost, "")
-      rr := rand.New(rand.NewSource(int64(os.Getpid()+i)))
+      rr := rand.New(rand.NewSource(int64(os.Getpid() + i)))
       for done == false {
         k := strconv.Itoa(rr.Int() % nkeys)
         v := strconv.Itoa(rr.Int())
@@ -410,7 +409,7 @@ func TestConcurrentSameUnreliable(t *testing.T) {
     }
     time.Sleep(viewservice.PingInterval)
   }
-  
+
   // give p+b time to ack, initialize
   time.Sleep(viewservice.PingInterval * viewservice.DeadPings)
 
@@ -422,7 +421,7 @@ func TestConcurrentSameUnreliable(t *testing.T) {
   for xi := 0; xi < nclients; xi++ {
     go func(i int) {
       ck := MakeClerk(vshost, "")
-      rr := rand.New(rand.NewSource(int64(os.Getpid()+i)))
+      rr := rand.New(rand.NewSource(int64(os.Getpid() + i)))
       for done == false {
         k := strconv.Itoa(rr.Int() % nkeys)
         v := strconv.Itoa(rr.Int())
@@ -482,7 +481,6 @@ func TestConcurrentSameUnreliable(t *testing.T) {
   time.Sleep(time.Second)
 }
 
-
 // constant put/get while crashing and restarting servers
 func TestRepeatedCrash(t *testing.T) {
   runtime.GOMAXPROCS(4)
@@ -492,7 +490,7 @@ func TestRepeatedCrash(t *testing.T) {
   vs := viewservice.StartServer(vshost)
   time.Sleep(time.Second)
   vck := viewservice.MakeClerk("", vshost)
-  
+
   fmt.Printf("Test: Repeated failures/restarts ...\n")
 
   const nservers = 3
@@ -530,7 +528,7 @@ func TestRepeatedCrash(t *testing.T) {
       // wait long enough for new view to form, backup to be initialized
       time.Sleep(2 * viewservice.PingInterval * viewservice.DeadPings)
     }
-  } ()
+  }()
 
   const nth = 2
   var cha [nth]chan bool
@@ -538,10 +536,10 @@ func TestRepeatedCrash(t *testing.T) {
     cha[xi] = make(chan bool)
     go func(i int) {
       ok := false
-      defer func() { cha[i] <- ok } ()
+      defer func() { cha[i] <- ok }()
       ck := MakeClerk(vshost, "")
       data := map[string]string{}
-      rr := rand.New(rand.NewSource(int64(os.Getpid()+i)))
+      rr := rand.New(rand.NewSource(int64(os.Getpid() + i)))
       for done == false {
         k := strconv.Itoa((i * 1000000) + (rr.Int() % 10))
         wanted, ok := data[k]
@@ -554,7 +552,7 @@ func TestRepeatedCrash(t *testing.T) {
         nv := strconv.Itoa(rr.Int())
         ck.Put(k, nv)
         data[k] = nv
-        // if no sleep here, then server tick() threads do not get 
+        // if no sleep here, then server tick() threads do not get
         // enough time to Ping the viewserver.
         time.Sleep(10 * time.Millisecond)
       }
@@ -568,7 +566,7 @@ func TestRepeatedCrash(t *testing.T) {
   fmt.Printf("  ... Put/Gets done ... \n")
 
   for i := 0; i < nth; i++ {
-    ok := <- cha[i]
+    ok := <-cha[i]
     if ok == false {
       t.Fatal("child failed")
     }
@@ -598,7 +596,7 @@ func TestRepeatedCrashUnreliable(t *testing.T) {
   vs := viewservice.StartServer(vshost)
   time.Sleep(time.Second)
   vck := viewservice.MakeClerk("", vshost)
-  
+
   fmt.Printf("Test: Repeated failures/restarts; unreliable ...\n")
 
   const nservers = 3
@@ -637,7 +635,7 @@ func TestRepeatedCrashUnreliable(t *testing.T) {
       // wait long enough for new view to form, backup to be initialized
       time.Sleep(2 * viewservice.PingInterval * viewservice.DeadPings)
     }
-  } ()
+  }()
 
   const nth = 2
   var cha [nth]chan bool
@@ -645,7 +643,7 @@ func TestRepeatedCrashUnreliable(t *testing.T) {
     cha[xi] = make(chan bool)
     go func(i int) {
       ok := false
-      defer func() { cha[i] <- ok } ()
+      defer func() { cha[i] <- ok }()
       ck := MakeClerk(vshost, "")
       data := map[string]string{}
       // rr := rand.New(rand.NewSource(int64(os.Getpid()+i)))
@@ -664,7 +662,7 @@ func TestRepeatedCrashUnreliable(t *testing.T) {
         if v != data[k] {
           t.Fatalf("ck.Get(%s) returned %v but expected %v at iter %d\n", k, v, data[k], n)
         }
-        // if no sleep here, then server tick() threads do not get 
+        // if no sleep here, then server tick() threads do not get
         // enough time to Ping the viewserver.
         time.Sleep(10 * time.Millisecond)
         n++
@@ -680,7 +678,7 @@ func TestRepeatedCrashUnreliable(t *testing.T) {
   fmt.Printf("  ... Put/Gets done ... \n")
 
   for i := 0; i < nth; i++ {
-    ok := <- cha[i]
+    ok := <-cha[i]
     if ok == false {
       t.Fatal("child failed")
     }
@@ -726,7 +724,7 @@ func proxy(t *testing.T, port string, delay *int) {
       if err != nil {
         t.Fatalf("proxy dial failed: %v\n", err)
       }
-      
+
       go func() {
         for {
           buf := make([]byte, 1000)
@@ -754,7 +752,7 @@ func proxy(t *testing.T, port string, delay *int) {
           t.Fatalf("proxy c2.Write: %v\n", err1)
         }
       }
-      
+
       c1.Close()
       c2.Close()
     }
@@ -793,7 +791,7 @@ func TestPartition1(t *testing.T) {
   if v1.Primary != s1.me || v1.Backup != s2.me {
     t.Fatal("backup did not join view")
   }
-  
+
   ck1.Put("a", "1")
   check(ck1, "a", "1")
 
@@ -814,7 +812,7 @@ func TestPartition1(t *testing.T) {
   // now s1 cannot talk to viewserver, so view will change,
   // and s1 won't immediately realize.
 
-  for iter := 0; iter < viewservice.DeadPings * 3; iter++ {
+  for iter := 0; iter < viewservice.DeadPings*3; iter++ {
     if vck.Primary() == s2.me {
       break
     }
@@ -881,7 +879,7 @@ func TestPartition2(t *testing.T) {
   if v1.Primary != s1.me || v1.Backup != s2.me {
     t.Fatal("backup did not join view")
   }
-  
+
   ck1.Put("a", "1")
   check(ck1, "a", "1")
 
@@ -901,7 +899,7 @@ func TestPartition2(t *testing.T) {
 
   // now s1 cannot talk to viewserver, so view will change.
 
-  for iter := 0; iter < viewservice.DeadPings * 3; iter++ {
+  for iter := 0; iter < viewservice.DeadPings*3; iter++ {
     if vck.Primary() == s2.me {
       break
     }
@@ -912,7 +910,7 @@ func TestPartition2(t *testing.T) {
   }
 
   s3 := StartServer(vshost, port(tag, 3))
-  for iter := 0; iter < viewservice.DeadPings * 3; iter++ {
+  for iter := 0; iter < viewservice.DeadPings*3; iter++ {
     v, _ := vck.Get()
     if v.Backup == s3.me && v.Primary == s2.me {
       break

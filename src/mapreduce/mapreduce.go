@@ -46,32 +46,32 @@ func DPrintf(format string, a ...interface{}) (n int, err error) {
 
 // Map and Reduce deal with <key, value> pairs:
 type KeyValue struct {
-  Key string
+  Key   string
   Value string
 }
 
 type MapReduce struct {
-  nMap int // Number of Map jobs
-  nReduce int  // Number of Reduce jobs
-  file string  // Name of input file
-  MasterAddress string
+  nMap            int    // Number of Map jobs
+  nReduce         int    // Number of Reduce jobs
+  file            string // Name of input file
+  MasterAddress   string
   registerChannel chan string
-  DoneChannel chan bool
-  alive bool
-  l net.Listener
-  stats *list.List
+  DoneChannel     chan bool
+  alive           bool
+  l               net.Listener
+  stats           *list.List
 
   // Map of registered workers that you need to keep up to date
-  Workers map[string]*WorkerInfo
+  Workers     map[string]*WorkerInfo
   idleChannel chan string
 
   // add any additional state here
-  jobs chan *DoJobArgs
+  jobs     chan *DoJobArgs
   doneJobs map[int](chan bool)
 }
 
 func InitMapReduce(nmap int, nreduce int,
-                   file string, master string) *MapReduce {
+  file string, master string) *MapReduce {
   mr := new(MapReduce)
   mr.nMap = nmap
   mr.nReduce = nreduce
@@ -96,7 +96,7 @@ func InitMapReduce(nmap int, nreduce int,
 }
 
 func MakeMapReduce(nmap int, nreduce int,
-                   file string, master string) *MapReduce {
+  file string, master string) *MapReduce {
   mr := InitMapReduce(nmap, nreduce, file, master)
   mr.StartRegistrationServer()
   go mr.Run()
@@ -113,14 +113,14 @@ func (mr *MapReduce) Register(args *RegisterArgs, res *RegisterReply) error {
 func (mr *MapReduce) Shutdown(args *ShutdownArgs, res *ShutdownReply) error {
   DPrintf("Shutdown: registration server\n")
   mr.alive = false
-  mr.l.Close()    // causes the Accept to fail
+  mr.l.Close() // causes the Accept to fail
   return nil
 }
 
 func (mr *MapReduce) StartRegistrationServer() {
   rpcs := rpc.NewServer()
   rpcs.Register(mr)
-  os.Remove(mr.MasterAddress)   // only needed for "unix"
+  os.Remove(mr.MasterAddress) // only needed for "unix"
   l, e := net.Listen("unix", mr.MasterAddress)
   if e != nil {
     log.Fatal("RegstrationServer", mr.MasterAddress, " error: ", e)
@@ -146,31 +146,30 @@ func (mr *MapReduce) StartRegistrationServer() {
   }()
 }
 
-
 // Name of the file that is the input for map job <MapJob>
 func MapName(fileName string, MapJob int) string {
-  return "mrtmp." +  fileName + "-" + strconv.Itoa(MapJob)
+  return "mrtmp." + fileName + "-" + strconv.Itoa(MapJob)
 }
 
 // Split bytes of input file into nMap splits, but split only on white space
 func (mr *MapReduce) Split(fileName string) {
   fmt.Printf("Split %s\n", fileName)
-  infile, err := os.Open(fileName);
+  infile, err := os.Open(fileName)
   if err != nil {
-    log.Fatal("Split: ", err);
+    log.Fatal("Split: ", err)
   }
   defer infile.Close()
-  fi, err := infile.Stat();
+  fi, err := infile.Stat()
   if err != nil {
-    log.Fatal("Split: ", err);
+    log.Fatal("Split: ", err)
   }
   size := fi.Size()
-  nchunk := size / int64(mr.nMap);
+  nchunk := size / int64(mr.nMap)
   nchunk += 1
 
   outfile, err := os.Create(MapName(fileName, 0))
   if err != nil {
-    log.Fatal("Split: ", err);
+    log.Fatal("Split: ", err)
   }
   writer := bufio.NewWriter(outfile)
   m := 1
@@ -178,7 +177,7 @@ func (mr *MapReduce) Split(fileName string) {
 
   scanner := bufio.NewScanner(infile)
   for scanner.Scan() {
-    if (int64(i) > nchunk * int64(m)) {
+    if int64(i) > nchunk*int64(m) {
       writer.Flush()
       outfile.Close()
       outfile, err = os.Create(MapName(fileName, m))
@@ -206,22 +205,22 @@ func hash(s string) uint32 {
 // Read split for job, call Map for that split, and create nreduce
 // partitions.
 func DoMap(JobNumber int, fileName string,
-           nreduce int, Map func(string) *list.List) {
+  nreduce int, Map func(string) *list.List) {
   name := MapName(fileName, JobNumber)
   file, err := os.Open(name)
   if err != nil {
-    log.Fatal("DoMap: ", err);
+    log.Fatal("DoMap: ", err)
   }
-  fi, err := file.Stat();
+  fi, err := file.Stat()
   if err != nil {
-    log.Fatal("DoMap: ", err);
+    log.Fatal("DoMap: ", err)
   }
   size := fi.Size()
   fmt.Printf("DoMap: read split %s %d\n", name, size)
-  b := make([]byte, size);
-  _, err = file.Read(b);
+  b := make([]byte, size)
+  _, err = file.Read(b)
   if err != nil {
-    log.Fatal("DoMap: ", err);
+    log.Fatal("DoMap: ", err)
   }
   file.Close()
   res := Map(string(b))
@@ -229,15 +228,15 @@ func DoMap(JobNumber int, fileName string,
   for r := 0; r < nreduce; r++ {
     file, err = os.Create(ReduceName(fileName, JobNumber, r))
     if err != nil {
-      log.Fatal("DoMap: create ", err);
+      log.Fatal("DoMap: create ", err)
     }
     enc := json.NewEncoder(file)
     for e := res.Front(); e != nil; e = e.Next() {
       kv := e.Value.(KeyValue)
-      if hash(kv.Key) % uint32(nreduce) == uint32(r) {
-        err := enc.Encode(&kv);
+      if hash(kv.Key)%uint32(nreduce) == uint32(r) {
+        err := enc.Encode(&kv)
         if err != nil {
-          log.Fatal("DoMap: marshall ", err);
+          log.Fatal("DoMap: marshall ", err)
         }
       }
     }
@@ -245,28 +244,28 @@ func DoMap(JobNumber int, fileName string,
   }
 }
 
-func MergeName(fileName string,  ReduceJob int) string {
-  return "mrtmp." +  fileName + "-res-" + strconv.Itoa(ReduceJob)
+func MergeName(fileName string, ReduceJob int) string {
+  return "mrtmp." + fileName + "-res-" + strconv.Itoa(ReduceJob)
 }
 
 // Read map outputs for partition job, sort them by key, call reduce for each
 // key
 func DoReduce(job int, fileName string, nmap int,
-              Reduce func(string,*list.List) string) {
+  Reduce func(string, *list.List) string) {
   kvs := make(map[string]*list.List)
   for i := 0; i < nmap; i++ {
     name := ReduceName(fileName, i, job)
     fmt.Printf("DoReduce: read %s\n", name)
     file, err := os.Open(name)
     if err != nil {
-      log.Fatal("DoReduce: ", err);
+      log.Fatal("DoReduce: ", err)
     }
     dec := json.NewDecoder(file)
     for {
       var kv KeyValue
-      err = dec.Decode(&kv);
+      err = dec.Decode(&kv)
       if err != nil {
-        break;
+        break
       }
       _, ok := kvs[kv.Key]
       if !ok {
@@ -284,7 +283,7 @@ func DoReduce(job int, fileName string, nmap int,
   p := MergeName(fileName, job)
   file, err := os.Create(p)
   if err != nil {
-    log.Fatal("DoReduce: create ", err);
+    log.Fatal("DoReduce: create ", err)
   }
   enc := json.NewEncoder(file)
   for _, k := range keys {
@@ -304,14 +303,14 @@ func (mr *MapReduce) Merge() {
     fmt.Printf("Merge: read %s\n", p)
     file, err := os.Open(p)
     if err != nil {
-      log.Fatal("Merge: ", err);
+      log.Fatal("Merge: ", err)
     }
     dec := json.NewDecoder(file)
     for {
       var kv KeyValue
-      err = dec.Decode(&kv);
+      err = dec.Decode(&kv)
       if err != nil {
-        break;
+        break
       }
       kvs[kv.Key] = kv.Value
     }
@@ -325,7 +324,7 @@ func (mr *MapReduce) Merge() {
 
   file, err := os.Create("mrtmp." + mr.file)
   if err != nil {
-    log.Fatal("Merge: create ", err);
+    log.Fatal("Merge: create ", err)
   }
   w := bufio.NewWriter(file)
   for _, k := range keys {
@@ -338,7 +337,7 @@ func (mr *MapReduce) Merge() {
 func RemoveFile(n string) {
   err := os.Remove(n)
   if err != nil {
-    log.Fatal("CleanupFiles ", err);
+    log.Fatal("CleanupFiles ", err)
   }
 }
 
@@ -357,8 +356,8 @@ func (mr *MapReduce) CleanupFiles() {
 
 // Run jobs sequentially.
 func RunSingle(nMap int, nReduce int, file string,
-               Map func(string) *list.List,
-               Reduce func(string,*list.List) string) {
+  Map func(string) *list.List,
+  Reduce func(string, *list.List) string) {
   mr := InitMapReduce(nMap, nReduce, file, "")
   mr.Split(mr.file)
   for i := 0; i < nMap; i++ {
@@ -377,7 +376,7 @@ func (mr *MapReduce) CleanupRegistration() {
   if ok == false {
     fmt.Printf("Cleanup: RPC %s error\n", mr.MasterAddress)
   }
-  DPrintf("CleanupRegistration: done\n");
+  DPrintf("CleanupRegistration: done\n")
 }
 
 // Run jobs in parallel, assuming a shared file system

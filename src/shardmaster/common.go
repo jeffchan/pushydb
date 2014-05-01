@@ -23,13 +23,13 @@ package shardmaster
 const NShards = 10
 
 type Config struct {
-  Num int // config number
-  Shards [NShards]int64 // gid
+  Num    int                // config number
+  Shards [NShards]int64     // gid
   Groups map[int64][]string // gid -> servers[]
 }
 
 type JoinArgs struct {
-  GID int64       // unique replica group ID
+  GID     int64    // unique replica group ID
   Servers []string // group server ports
 }
 
@@ -45,7 +45,7 @@ type LeaveReply struct {
 
 type MoveArgs struct {
   Shard int
-  GID int64
+  GID   int64
 }
 
 type MoveReply struct {

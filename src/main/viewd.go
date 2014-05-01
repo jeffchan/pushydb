@@ -17,5 +17,7 @@ func main() {
 
   viewservice.StartServer(os.Args[1])
 
-  for { time.Sleep(100 * time.Second) }
+  for {
+    time.Sleep(100 * time.Second)
+  }
 }

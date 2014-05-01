@@ -25,5 +25,7 @@ func main() {
     fmt.Printf("Usage: lockd -p|-b primaryport backupport\n")
     os.Exit(1)
   }
-  for { time.Sleep(100 * time.Second) }
+  for {
+    time.Sleep(100 * time.Second)
+  }
 }

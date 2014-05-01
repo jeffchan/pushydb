@@ -14,10 +14,10 @@ const (
 )
 
 type Clerk struct {
-  mu sync.Mutex // one RPC at a time
-  sm *shardmaster.Clerk
-  config shardmaster.Config
-  id string
+  mu      sync.Mutex // one RPC at a time
+  sm      *shardmaster.Clerk
+  config  shardmaster.Config
+  id      string
   counter uint64
 }
 
@@ -53,7 +53,7 @@ func nrand() int64 {
 // please don't change this function.
 //
 func call(srv string, rpcname string,
-          args interface{}, reply interface{}) bool {
+  args interface{}, reply interface{}) bool {
   c, errx := rpc.Dial("unix", srv)
   if errx != nil {
     return false
@@ -92,7 +92,7 @@ func (ck *Clerk) log(format string, a ...interface{}) (n int, err error) {
   if ClientLog {
     addr := "ClientID#" + ck.id + "|"
     reqId := "ReqId#" + strconv.FormatUint(ck.counter, 10)
-    n, err = fmt.Printf(addr + reqId + " ** " + format + "\n", a...)
+    n, err = fmt.Printf(addr+reqId+" ** "+format+"\n", a...)
   }
   return
 }

@@ -17,5 +17,7 @@ func main() {
 
   pbservice.StartServer(os.Args[1], os.Args[2])
 
-  for { time.Sleep(100 * time.Second) }
+  for {
+    time.Sleep(100 * time.Second)
+  }
 }

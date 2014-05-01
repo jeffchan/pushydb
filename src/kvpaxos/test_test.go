@@ -98,7 +98,7 @@ func TestBasic(t *testing.T) {
       }(nth)
     }
     for nth := 0; nth < npara; nth++ {
-      <- ca[nth]
+      <-ca[nth]
     }
     var va [nservers]string
     for i := 0; i < nservers; i++ {
@@ -155,7 +155,7 @@ func TestDone(t *testing.T) {
         value[j] = byte((rand.Int() % 100) + 1)
       }
       ck.Put(key, string(value))
-      check(t, cka[i % nservers], key, string(value))
+      check(t, cka[i%nservers], key, string(value))
     }
   }
 
@@ -178,7 +178,7 @@ func TestDone(t *testing.T) {
 
   // fmt.Printf("  Memory: before %v, after %v\n", m0.Alloc, m1.Alloc)
 
-  allowed := m0.Alloc + uint64(nservers * items * sz * 2)
+  allowed := m0.Alloc + uint64(nservers*items*sz*2)
   if m1.Alloc > allowed {
     t.Fatalf("Memory use did not shrink enough (Used: %v, allowed: %v).\n", m1.Alloc, allowed)
   }
@@ -253,7 +253,7 @@ func TestPartition(t *testing.T) {
 
   fmt.Printf("Test: No partition ...\n")
 
-  part(t, tag, nservers, []int{0,1,2,3,4}, []int{}, []int{})
+  part(t, tag, nservers, []int{0, 1, 2, 3, 4}, []int{}, []int{})
   cka[0].Put("1", "12")
   cka[2].Put("1", "13")
   check(t, cka[3], "1", "13")
@@ -262,7 +262,7 @@ func TestPartition(t *testing.T) {
 
   fmt.Printf("Test: Progress in majority ...\n")
 
-  part(t, tag, nservers, []int{2,3,4}, []int{0,1}, []int{})
+  part(t, tag, nservers, []int{2, 3, 4}, []int{0, 1}, []int{})
   cka[2].Put("1", "14")
   check(t, cka[4], "1", "14")
 
@@ -295,7 +295,7 @@ func TestPartition(t *testing.T) {
 
   fmt.Printf("Test: Completion after heal ...\n")
 
-  part(t, tag, nservers, []int{0,2,3,4}, []int{1}, []int{})
+  part(t, tag, nservers, []int{0, 2, 3, 4}, []int{1}, []int{})
   for iters := 0; iters < 30; iters++ {
     if done0 {
       break
@@ -311,7 +311,7 @@ func TestPartition(t *testing.T) {
   check(t, cka[4], "1", "15")
   check(t, cka[0], "1", "15")
 
-  part(t, tag, nservers, []int{0,1,2}, []int{3,4}, []int{})
+  part(t, tag, nservers, []int{0, 1, 2}, []int{3, 4}, []int{})
   for iters := 0; iters < 100; iters++ {
     if done1 {
       break
@@ -364,7 +364,7 @@ func TestUnreliable(t *testing.T) {
   fmt.Printf("Test: Sequence of puts, unreliable ...\n")
 
   for iters := 0; iters < 6; iters++ {
-  const ncli = 5
+    const ncli = 5
     var ca [ncli]chan bool
     for cli := 0; cli < ncli; cli++ {
       ca[cli] = make(chan bool)
@@ -374,7 +374,7 @@ func TestUnreliable(t *testing.T) {
         sa := make([]string, len(kvh))
         copy(sa, kvh)
         for i := range sa {
-          j := rand.Intn(i+1)
+          j := rand.Intn(i + 1)
           sa[i], sa[j] = sa[j], sa[i]
         }
         myck := MakeClerk(sa)
@@ -406,7 +406,7 @@ func TestUnreliable(t *testing.T) {
       }(cli)
     }
     for cli := 0; cli < ncli; cli++ {
-      x := <- ca[cli]
+      x := <-ca[cli]
       if x == false {
         t.Fatalf("failure")
       }
@@ -427,7 +427,7 @@ func TestUnreliable(t *testing.T) {
         sa := make([]string, len(kvh))
         copy(sa, kvh)
         for i := range sa {
-          j := rand.Intn(i+1)
+          j := rand.Intn(i + 1)
           sa[i], sa[j] = sa[j], sa[i]
         }
         myck := MakeClerk(sa)
@@ -439,7 +439,7 @@ func TestUnreliable(t *testing.T) {
       }(cli)
     }
     for cli := 0; cli < ncli; cli++ {
-      <- ca[cli]
+      <-ca[cli]
     }
 
     var va [nservers]string
@@ -481,7 +481,7 @@ func TestHole(t *testing.T) {
   defer part(t, tag, nservers, []int{}, []int{}, []int{})
 
   for iters := 0; iters < 5; iters++ {
-    part(t, tag, nservers, []int{0,1,2,3,4}, []int{}, []int{})
+    part(t, tag, nservers, []int{0, 1, 2, 3, 4}, []int{}, []int{})
 
     ck2 := MakeClerk([]string{port(tag, 2)})
     ck2.Put("q", "q")
@@ -516,12 +516,12 @@ func TestHole(t *testing.T) {
           }
         }
         ok = true
-      } (xcli)
+      }(xcli)
     }
 
     time.Sleep(3 * time.Second)
 
-    part(t, tag, nservers, []int{2,3,4}, []int{0,1}, []int{})
+    part(t, tag, nservers, []int{2, 3, 4}, []int{0, 1}, []int{})
 
     // can majority partition make progress even though
     // minority servers were interrupted in the middle of
@@ -529,13 +529,13 @@ func TestHole(t *testing.T) {
     check(t, ck2, "q", "q")
     ck2.Put("q", "qq")
     check(t, ck2, "q", "qq")
-      
+
     // restore network, wait for all threads to exit.
-    part(t, tag, nservers, []int{0,1,2,3,4}, []int{}, []int{})
+    part(t, tag, nservers, []int{0, 1, 2, 3, 4}, []int{}, []int{})
     done = true
     ok := true
     for i := 0; i < nclients; i++ {
-      z := <- ca[i]
+      z := <-ca[i]
       ok = ok && z
     }
     if ok == false {
@@ -571,14 +571,14 @@ func TestManyPartition(t *testing.T) {
     kva[i].unreliable = true
   }
   defer part(t, tag, nservers, []int{}, []int{}, []int{})
-  part(t, tag, nservers, []int{0,1,2,3,4}, []int{}, []int{})
+  part(t, tag, nservers, []int{0, 1, 2, 3, 4}, []int{}, []int{})
 
   done := false
 
   // re-partition periodically
   ch1 := make(chan bool)
   go func() {
-    defer func() { ch1 <- true } ()
+    defer func() { ch1 <- true }()
     for done == false {
       var a [nservers]int
       for i := 0; i < nservers; i++ {
@@ -594,7 +594,7 @@ func TestManyPartition(t *testing.T) {
         }
       }
       part(t, tag, nservers, pa[0], pa[1], pa[2])
-      time.Sleep(time.Duration(rand.Int63() % 200) * time.Millisecond)
+      time.Sleep(time.Duration(rand.Int63()%200) * time.Millisecond)
     }
   }()
 
@@ -610,7 +610,7 @@ func TestManyPartition(t *testing.T) {
         sa[i] = port(tag, i)
       }
       for i := range sa {
-        j := rand.Intn(i+1)
+        j := rand.Intn(i + 1)
         sa[i], sa[j] = sa[j], sa[i]
       }
       myck := MakeClerk(sa)
@@ -635,17 +635,17 @@ func TestManyPartition(t *testing.T) {
         }
       }
       ok = true
-    } (xcli)
+    }(xcli)
   }
 
   time.Sleep(20 * time.Second)
   done = true
-  <- ch1
-  part(t, tag, nservers, []int{0,1,2,3,4}, []int{}, []int{})
+  <-ch1
+  part(t, tag, nservers, []int{0, 1, 2, 3, 4}, []int{}, []int{})
 
   ok := true
   for i := 0; i < nclients; i++ {
-    z := <- ca[i]
+    z := <-ca[i]
     ok = ok && z
   }
 

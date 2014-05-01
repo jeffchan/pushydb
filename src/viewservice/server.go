@@ -1,4 +1,3 @@
-
 package viewservice
 
 import "net"
@@ -9,19 +8,19 @@ import "sync"
 import "os"
 
 type ViewServer struct {
-  mu sync.Mutex
-  l net.Listener
+  mu   sync.Mutex
+  l    net.Listener
   dead bool
-  me string
+  me   string
 
   lastPing map[string]*LastPing
-  view View // the current view
+  view     View // the current view
 }
 
 type LastPing struct {
-  Viewnum uint // last ping's viewnum
+  Viewnum   uint      // last ping's viewnum
   Timestamp time.Time // last ping's timestamp
-  Restart bool
+  Restart   bool
 }
 
 //
@@ -40,7 +39,7 @@ func (vs *ViewServer) Ping(args *PingArgs, reply *PingReply) error {
   newPing.Restart = false
 
   if ok && args.Viewnum == 0 && vs.view.Viewnum > 1 &&
-     (address == vs.view.Primary || address == vs.view.Backup)  {
+    (address == vs.view.Primary || address == vs.view.Backup) {
     log.Println(address + " -> Signal restart")
     newPing.Restart = true
   }
@@ -85,10 +84,10 @@ func (vs *ViewServer) primaryEligible(address string) bool {
 }
 
 func (vs *ViewServer) nextAvail() string {
-  for address,_ := range vs.lastPing {
-    if (!vs.isDead(address) &&
-        vs.view.Primary != address &&
-        vs.view.Backup != address) {
+  for address, _ := range vs.lastPing {
+    if !vs.isDead(address) &&
+      vs.view.Primary != address &&
+      vs.view.Backup != address {
       return address
     }
   }
@@ -96,7 +95,7 @@ func (vs *ViewServer) nextAvail() string {
 }
 
 func (vs *ViewServer) nextView(primary string, secondary string) {
-  vs.view = View{ vs.view.Viewnum+1, primary, secondary }
+  vs.view = View{vs.view.Viewnum + 1, primary, secondary}
 }
 
 //
@@ -122,7 +121,9 @@ func (vs *ViewServer) tick() {
   }
 
   lastPing, ok := vs.lastPing[primary]
-  if !ok { return }
+  if !ok {
+    return
+  }
 
   // Special case if the primary restarted, must have new primary
   if vs.lastPing[primary].Restart {
@@ -173,9 +174,9 @@ func StartServer(me string) *ViewServer {
   // prepare to receive connections from clients.
   // change "unix" to "tcp" to use over a network.
   os.Remove(vs.me) // only needed for "unix"
-  l, e := net.Listen("unix", vs.me);
+  l, e := net.Listen("unix", vs.me)
   if e != nil {
-    log.Fatal("listen error: ", e);
+    log.Fatal("listen error: ", e)
   }
   vs.l = l
 

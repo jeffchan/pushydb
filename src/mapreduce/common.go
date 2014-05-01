@@ -4,7 +4,7 @@ import "fmt"
 import "net/rpc"
 
 const (
-  Map = "Map"
+  Map    = "Map"
   Reduce = "Reduce"
 )
 
@@ -14,10 +14,10 @@ type JobType string
 // otherwise RPC will break.
 
 type DoJobArgs struct {
-  File string
-  Operation JobType
-  JobNumber int       // this job's number
-  NumOtherPhase int   // total number of jobs in other phase (map or reduce)
+  File          string
+  Operation     JobType
+  JobNumber     int // this job's number
+  NumOtherPhase int // total number of jobs in other phase (map or reduce)
 }
 
 type DoJobReply struct {
@@ -29,7 +29,7 @@ type ShutdownArgs struct {
 
 type ShutdownReply struct {
   Njobs int
-  OK bool
+  OK    bool
 }
 
 type RegisterArgs struct {
@@ -57,7 +57,7 @@ type RegisterReply struct {
 // and worker.go.  please don't change this function.
 //
 func call(srv string, rpcname string,
-          args interface{}, reply interface{}) bool {
+  args interface{}, reply interface{}) bool {
   c, errx := rpc.Dial("unix", srv)
   if errx != nil {
     return false

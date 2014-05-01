@@ -17,10 +17,10 @@ func nrand() int64 {
 }
 
 type Clerk struct {
-  vs *viewservice.Clerk
-  id int64
+  vs      *viewservice.Clerk
+  id      int64
   counter uint
-  mu sync.Mutex
+  mu      sync.Mutex
 }
 
 func MakeClerk(vshost string, me string) *Clerk {
@@ -48,7 +48,7 @@ func MakeClerk(vshost string, me string) *Clerk {
 // please don't change this function.
 //
 func call(srv string, rpcname string,
-          args interface{}, reply interface{}) bool {
+  args interface{}, reply interface{}) bool {
   c, errx := rpc.Dial("unix", srv)
   if errx != nil {
     return false
@@ -73,9 +73,9 @@ func (ck *Clerk) reqId() string {
 
 // Retry until valid primary
 func (ck *Clerk) getPrimary() string {
-  view,_ := ck.vs.Get()
+  view, _ := ck.vs.Get()
   for view.Primary == "" {
-    view,_ = ck.vs.Get()
+    view, _ = ck.vs.Get()
   }
   return view.Primary
 }

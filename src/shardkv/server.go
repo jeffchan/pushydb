@@ -16,20 +16,20 @@ import "strconv"
 import "strings"
 
 const (
-  ServerLog = false
-  InitTimeout = 10 * time.Millisecond
+  ServerLog           = false
+  InitTimeout         = 10 * time.Millisecond
   ReconfigReqIdPrefix = "reconfig:gid="
 )
 
-func ParseReqId(reqId string) (string,uint64) {
+func ParseReqId(reqId string) (string, uint64) {
   s := strings.Split(reqId, ":")
   clientId := s[0]
-  reqNum,_ := strconv.ParseUint(s[1], 10, 64)
-  return clientId,reqNum
+  reqNum, _ := strconv.ParseUint(s[1], 10, 64)
+  return clientId, reqNum
 }
 
 func RandMTime() time.Duration {
-  return time.Duration(rand.Int() % 100)  * time.Millisecond
+  return time.Duration(rand.Int()%100) * time.Millisecond
 }
 
 func CorrectGroup(key string, gid int64, config shardmaster.Config) bool {
@@ -42,7 +42,7 @@ func CorrectGroup(key string, gid int64, config shardmaster.Config) bool {
 
 func CopyTable(src map[string]string) map[string]string {
   dst := make(map[string]string)
-  for k,v := range src {
+  for k, v := range src {
     dst[k] = v
   }
   return dst
@@ -50,7 +50,7 @@ func CopyTable(src map[string]string) map[string]string {
 
 func CopyReqs(src map[string]*Result) map[string]*Result {
   dst := make(map[string]*Result)
-  for k,v := range src {
+  for k, v := range src {
     dst[k] = v
   }
   return dst
@@ -59,7 +59,7 @@ func CopyReqs(src map[string]*Result) map[string]*Result {
 func FilterTable(src map[string]string, shard int) map[string]string {
   // Filter k-v table by shard
   result := make(map[string]string)
-  for k,v := range src {
+  for k, v := range src {
     if key2shard(k) == shard {
       result[k] = v
     }
@@ -70,7 +70,7 @@ func FilterTable(src map[string]string, shard int) map[string]string {
 func FilterReqs(src map[string]*Result) map[string]*Result {
   // Filter request tables to exclude reconfigs
   result := make(map[string]*Result)
-  for k,v := range src {
+  for k, v := range src {
     if !strings.Contains(v.ReqId, ReconfigReqIdPrefix) {
       result[k] = v
     }
@@ -79,43 +79,44 @@ func FilterReqs(src map[string]*Result) map[string]*Result {
 }
 
 const (
-  Put = "Put"
-  Get = "Get"
+  Put      = "Put"
+  Get      = "Get"
   Reconfig = "Reconfig"
-  Noop = "Noop"
+  Noop     = "Noop"
 )
+
 type Operation string
 
 type Op struct {
   Operation Operation
-  Args interface{}
-  ReqId string
+  Args      interface{}
+  ReqId     string
   ConfigNum int
 }
 
 type Result struct {
   ReqId string
-  Val string
-  Err Err
+  Val   string
+  Err   Err
 }
 
 type ShardKV struct {
-  mu sync.Mutex
-  l net.Listener
-  me int
-  dead bool // for testing
+  mu         sync.Mutex
+  l          net.Listener
+  me         int
+  dead       bool // for testing
   unreliable bool // for testing
-  sm *shardmaster.Clerk
-  px *paxos.Paxos
+  sm         *shardmaster.Clerk
+  px         *paxos.Paxos
 
-  gid int64 // my replica group ID
-  config shardmaster.Config
+  gid      int64 // my replica group ID
+  config   shardmaster.Config
   transfer sync.Mutex
 
-  table map[string]string // key -> value
-  tableCache map[int]map[string]string // confignum -> key -> value
-  reqs map[string]*Result
-  reqsCache map[int]map[string]*Result
+  table          map[string]string         // key -> value
+  tableCache     map[int]map[string]string // confignum -> key -> value
+  reqs           map[string]*Result
+  reqsCache      map[int]map[string]*Result
   lastAppliedSeq int
 }
 
@@ -130,7 +131,7 @@ func (kv *ShardKV) Get(args *GetArgs, reply *GetReply) error {
 
   op := Op{Operation: Get, Args: *args, ReqId: reqId, ConfigNum: kv.config.Num}
 
-  val,err := kv.resolveOp(op)
+  val, err := kv.resolveOp(op)
   reply.Value = val
   reply.Err = err
 
@@ -151,7 +152,7 @@ func (kv *ShardKV) Put(args *PutArgs, reply *PutReply) error {
 
   op := Op{Operation: Put, Args: *args, ReqId: reqId, ConfigNum: kv.config.Num}
 
-  prev,err := kv.resolveOp(op)
+  prev, err := kv.resolveOp(op)
   reply.PreviousValue = prev
   reply.Err = err
 
@@ -169,8 +170,8 @@ func (kv *ShardKV) Transfer(args *TransferArgs, reply *TransferReply) error {
   shard := args.Shard
   // kv.log("Transfer receive, config=%d, shard=%d", configNum, shard)
 
-  tableCache,tableExists := kv.tableCache[configNum]
-  reqsCache,reqExists := kv.reqsCache[configNum]
+  tableCache, tableExists := kv.tableCache[configNum]
+  reqsCache, reqExists := kv.reqsCache[configNum]
 
   if !tableExists || !reqExists {
     // kv.log("wrong view %d", kv.config.Num)
@@ -187,11 +188,11 @@ func (kv *ShardKV) Transfer(args *TransferArgs, reply *TransferReply) error {
   return nil
 }
 
-func (kv *ShardKV) resolveOp(op Op) (string,Err) {
-  seq := kv.px.Max()+1
+func (kv *ShardKV) resolveOp(op Op) (string, Err) {
+  seq := kv.px.Max() + 1
 
   kv.mu.Lock()
-  dup,exists := kv.reqs[op.ReqId]
+  dup, exists := kv.reqs[op.ReqId]
   kv.mu.Unlock()
 
   if exists {
@@ -203,21 +204,21 @@ func (kv *ShardKV) resolveOp(op Op) (string,Err) {
   to := InitTimeout
   time.Sleep(to)
 
-  decided,val := kv.px.Status(seq)
+  decided, val := kv.px.Status(seq)
   for !decided || val != op {
     if (decided && val != op) || (seq <= kv.lastAppliedSeq) {
       kv.log("Seq=%d already decided", seq)
-      seq = kv.px.Max()+1
+      seq = kv.px.Max() + 1
       kv.px.Start(seq, op)
     }
 
     // kv.log("Retry w/ seq=%d", seq)
     time.Sleep(to + RandMTime())
-    if to < 100 * time.Millisecond {
+    if to < 100*time.Millisecond {
       to *= 2
     }
 
-    decided,val = kv.px.Status(seq)
+    decided, val = kv.px.Status(seq)
   }
 
   // kv.log("Seq=%d decided!", seq)
@@ -228,7 +229,7 @@ func (kv *ShardKV) resolveOp(op Op) (string,Err) {
   }
 
   kv.mu.Lock()
-  result,exists := kv.reqs[op.ReqId]
+  result, exists := kv.reqs[op.ReqId]
   kv.mu.Unlock()
 
   kv.px.Done(seq)
@@ -241,23 +242,23 @@ func (kv *ShardKV) resolveOp(op Op) (string,Err) {
   return result.Val, result.Err
 }
 
-func (kv *ShardKV) applyGet(key string) (string,Err) {
+func (kv *ShardKV) applyGet(key string) (string, Err) {
   if !CorrectGroup(key, kv.gid, kv.config) {
-    return "",ErrWrongGroup
+    return "", ErrWrongGroup
   }
 
   val, ok := kv.table[key]
 
   if !ok {
-    return "",ErrNoKey
+    return "", ErrNoKey
   }
 
-  return val,OK
+  return val, OK
 }
 
-func (kv *ShardKV) applyPut(key string, val string, dohash bool) (string,Err) {
+func (kv *ShardKV) applyPut(key string, val string, dohash bool) (string, Err) {
   if !CorrectGroup(key, kv.gid, kv.config) {
-    return "",ErrWrongGroup
+    return "", ErrWrongGroup
   }
 
   oldval, ok := kv.table[key]
@@ -272,10 +273,10 @@ func (kv *ShardKV) applyPut(key string, val string, dohash bool) (string,Err) {
 
   kv.table[key] = newval
 
-  return oldval,OK
+  return oldval, OK
 }
 
-func (kv *ShardKV) applyReconfig(fromConfigNum int, toConfigNum int) (string,Err) {
+func (kv *ShardKV) applyReconfig(fromConfigNum int, toConfigNum int) (string, Err) {
 
   old := kv.sm.Query(fromConfigNum)
   next := kv.sm.Query(toConfigNum)
@@ -284,19 +285,19 @@ func (kv *ShardKV) applyReconfig(fromConfigNum int, toConfigNum int) (string,Err
 
   // Skip the initial blank config
   if fromConfigNum == 0 {
-    return "",OK
+    return "", OK
   }
 
   kv.tableCache[old.Num] = CopyTable(kv.table)
   kv.reqsCache[old.Num] = CopyReqs(kv.reqs)
 
-  for shard,newGid := range next.Shards {
+  for shard, newGid := range next.Shards {
     oldGid := old.Shards[shard]
     if oldGid != newGid && newGid == kv.gid {
       // request shards from replicas in another group
       fetched := false
       for !fetched && kv.dead == false {
-        for _,server := range old.Groups[oldGid] {
+        for _, server := range old.Groups[oldGid] {
           args := &TransferArgs{ConfigNum: old.Num, Shard: shard}
           var reply TransferReply
           ok := call(server, "ShardKV.Transfer", args, &reply)
@@ -315,34 +316,34 @@ func (kv *ShardKV) applyReconfig(fromConfigNum int, toConfigNum int) (string,Err
     }
   }
 
-  return "",OK
+  return "", OK
 }
 
 func (kv *ShardKV) mergeTable(incoming map[string]string) {
-  for k,v := range incoming {
+  for k, v := range incoming {
     kv.table[k] = v
   }
 }
 
 func (kv *ShardKV) mergeReqs(incoming map[string]*Result) {
-  for k,v := range incoming {
+  for k, v := range incoming {
     kv.reqs[k] = v
   }
 }
 
-func (kv *ShardKV) applyOp(op *Op) (string,Err) {
+func (kv *ShardKV) applyOp(op *Op) (string, Err) {
   // Return early for a noop
   if op.Operation == Noop {
-    return "",ErrNoOp
+    return "", ErrNoOp
   }
 
   // Check if operation was already applied
   kv.mu.Lock()
-  _,exists := kv.reqs[op.ReqId]
+  _, exists := kv.reqs[op.ReqId]
   kv.mu.Unlock()
 
   if exists {
-    return "",ErrAlreadyApplied
+    return "", ErrAlreadyApplied
   }
 
   switch op.Operation {
@@ -358,7 +359,7 @@ func (kv *ShardKV) applyOp(op *Op) (string,Err) {
   }
 
   // Should not reach this point
-  return "",ErrInvalid
+  return "", ErrInvalid
 }
 
 func (kv *ShardKV) logSync() {
@@ -367,13 +368,13 @@ func (kv *ShardKV) logSync() {
 
   for kv.dead == false {
 
-    seq := kv.lastAppliedSeq+1
-    decided,result := kv.px.Status(seq)
+    seq := kv.lastAppliedSeq + 1
+    decided, result := kv.px.Status(seq)
 
     if decided {
       // apply the operation
-      op,_ := result.(Op)
-      val,err := kv.applyOp(&op)
+      op, _ := result.(Op)
+      val, err := kv.applyOp(&op)
 
       kv.mu.Lock()
       if err == OK || err == ErrNoKey {
@@ -395,21 +396,21 @@ func (kv *ShardKV) logSync() {
     } else {
       // kv.log("Retry for seq=%d", seq)
 
-      if timeout >= 1 * time.Second {
+      if timeout >= 1*time.Second {
         kv.log("Try noop for seq=%d", seq)
         kv.px.Start(seq, Op{Operation: Noop})
 
         // wait for noop to return
         noopDone := false
         for !noopDone {
-          noopDone,_ = kv.px.Status(seq)
+          noopDone, _ = kv.px.Status(seq)
           time.Sleep(100 * time.Millisecond)
         }
       } else {
         // wait before retrying
         time.Sleep(timeout)
 
-        if timeout < 1 * time.Second {
+        if timeout < 1*time.Second {
           // expotential backoff
           timeout *= 2
         }
@@ -426,7 +427,7 @@ func (kv *ShardKV) prepareReconfig(oldConfig shardmaster.Config, newConfig shard
   reqId := ReconfigReqIdPrefix
   reqId += strconv.FormatInt(kv.gid, 10) + ":"
   reqId += strconv.Itoa(oldConfig.Num) + "->" + strconv.Itoa(newConfig.Num)
-  _,exists := kv.reqs[reqId]
+  _, exists := kv.reqs[reqId]
   if exists {
     return
   }
@@ -464,7 +465,7 @@ func (kv *ShardKV) log(format string, a ...interface{}) (n int, err error) {
     addr := "Srv#" + strconv.Itoa(kv.me) + "|"
     gid := "GID#" + strconv.FormatInt(kv.gid, 10) + "|"
     config := "Config#" + strconv.Itoa(kv.config.Num)
-    n, err = fmt.Printf(addr + gid + config + " >> " + format + "\n", a...)
+    n, err = fmt.Printf(addr+gid+config+" >> "+format+"\n", a...)
   }
   return
 }
@@ -486,7 +487,7 @@ func (kv *ShardKV) kill() {
 // Me is the index of this server in servers[].
 //
 func StartServer(gid int64, shardmasters []string,
-                 servers []string, me int) *ShardKV {
+  servers []string, me int) *ShardKV {
   gob.Register(Op{})
   gob.Register(PutArgs{})
   gob.Register(GetArgs{})
@@ -510,11 +511,10 @@ func StartServer(gid int64, shardmasters []string,
 
   kv.px = paxos.Make(servers, me, rpcs)
 
-
   os.Remove(servers[me])
-  l, e := net.Listen("unix", servers[me]);
+  l, e := net.Listen("unix", servers[me])
   if e != nil {
-    log.Fatal("listen error: ", e);
+    log.Fatal("listen error: ", e)
   }
   kv.l = l
 
@@ -525,10 +525,10 @@ func StartServer(gid int64, shardmasters []string,
     for kv.dead == false {
       conn, err := kv.l.Accept()
       if err == nil && kv.dead == false {
-        if kv.unreliable && (rand.Int63() % 1000) < 100 {
+        if kv.unreliable && (rand.Int63()%1000) < 100 {
           // discard the request.
           conn.Close()
-        } else if kv.unreliable && (rand.Int63() % 1000) < 200 {
+        } else if kv.unreliable && (rand.Int63()%1000) < 200 {
           // process the request but force discard of reply.
           c1 := conn.(*net.UnixConn)
           f, _ := c1.File()

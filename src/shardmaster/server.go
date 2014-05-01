@@ -15,60 +15,64 @@ import "strconv"
 import "sort"
 
 const (
-  Debug = false
+  Debug       = false
   InitTimeout = 10 * time.Millisecond
 )
 
 type ShardAlloc struct {
-  GID int64
+  GID       int64
   NumShards int
-  Shards []int
+  Shards    []int
 }
 
 // implements sort.Interface for []ShardAlloc
 type ByNumShardsInc []ShardAlloc
+
 func (a ByNumShardsInc) Len() int           { return len(a) }
 func (a ByNumShardsInc) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a ByNumShardsInc) Less(i, j int) bool { return a[i].NumShards < a[j].NumShards }
 
 type ByNumShardsDec []ShardAlloc
+
 func (a ByNumShardsDec) Len() int           { return len(a) }
 func (a ByNumShardsDec) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a ByNumShardsDec) Less(i, j int) bool { return a[i].NumShards > a[j].NumShards }
 
 type ShardMaster struct {
-  mu sync.Mutex
-  l net.Listener
-  me int
-  dead bool // for testing
+  mu         sync.Mutex
+  l          net.Listener
+  me         int
+  dead       bool // for testing
   unreliable bool // for testing
-  px *paxos.Paxos
+  px         *paxos.Paxos
 
-  configs []Config // indexed by config num
+  configs        []Config // indexed by config num
   lastAppliedSeq int
 }
 
 const (
-  OK = "OK"
-  ErrNoop = "ErrNoop"
-  ErrInvalid = "ErrInvalid"
+  OK                  = "OK"
+  ErrNoop             = "ErrNoop"
+  ErrInvalid          = "ErrInvalid"
   ErrGIDAlreadyJoined = "ErrGIDAlreadyJoined"
-  ErrGIDAlreadyLeft = "ErrGIDAlreadyLeft"
+  ErrGIDAlreadyLeft   = "ErrGIDAlreadyLeft"
 )
+
 type Err string
 
 const (
-  Join = "Join"
+  Join  = "Join"
   Leave = "Leave"
-  Move = "Move"
+  Move  = "Move"
   Query = "Query"
-  Noop = "Noop"
+  Noop  = "Noop"
 )
+
 type Operation string
 
 type Op struct {
   Operation Operation
-  Args interface{}
+  Args      interface{}
 }
 
 func OpEquals(a Op, b Op) bool {
@@ -84,7 +88,7 @@ func OpEquals(a Op, b Op) bool {
       return false
     }
 
-    for index,val := range aArgs.Servers {
+    for index, val := range aArgs.Servers {
       if val != bArgs.Servers[index] {
         return false
       }
@@ -97,7 +101,7 @@ func OpEquals(a Op, b Op) bool {
 }
 
 func RandMTime() time.Duration {
-  return time.Duration(rand.Int() % 100)  * time.Millisecond
+  return time.Duration(rand.Int()%100) * time.Millisecond
 }
 
 func MakeConfig(num int, shards [NShards]int64, groups map[int64][]string) *Config {
@@ -110,7 +114,7 @@ func MakeConfig(num int, shards [NShards]int64, groups map[int64][]string) *Conf
 
 func CopyGroups(src map[int64][]string) map[int64][]string {
   dst := make(map[int64][]string)
-  for k,v := range src {
+  for k, v := range src {
     dst[k] = v
   }
   return dst
@@ -118,7 +122,7 @@ func CopyGroups(src map[int64][]string) map[int64][]string {
 
 func CopyShards(src [NShards]int64) [NShards]int64 {
   var dst [NShards]int64
-  for shard,gid := range src {
+  for shard, gid := range src {
     dst[shard] = gid
   }
   return dst
@@ -126,12 +130,12 @@ func CopyShards(src [NShards]int64) [NShards]int64 {
 
 func MakeShardAllocs(groups map[int64][]string, shards [NShards]int64) map[int64]*ShardAlloc {
   availGids := make(map[int64]*ShardAlloc)
-  for gid,_ := range groups {
+  for gid, _ := range groups {
     availGids[gid] = &ShardAlloc{GID: gid, NumShards: 0, Shards: []int{}}
   }
 
-  for shard,gid := range shards {
-    alloc,exists := availGids[gid]
+  for shard, gid := range shards {
+    alloc, exists := availGids[gid]
     // Invariant: gid should always exist in shard
     if exists {
       alloc.NumShards += 1
@@ -144,7 +148,7 @@ func MakeShardAllocs(groups map[int64][]string, shards [NShards]int64) map[int64
 
 func SortShardAllocs(availGids map[int64]*ShardAlloc, order string) []ShardAlloc {
   var shardAllocs []ShardAlloc
-  for _,v := range availGids {
+  for _, v := range availGids {
     shardAllocs = append(shardAllocs, *v)
   }
 
@@ -188,14 +192,14 @@ func (sm *ShardMaster) Query(args *QueryArgs, reply *QueryReply) error {
 }
 
 func (sm *ShardMaster) resolveOp(op Op) Config {
-  seq := sm.px.Max()+1
+  seq := sm.px.Max() + 1
   sm.log("Resolve init seq=%d", seq)
   sm.px.Start(seq, op)
 
   timeout := InitTimeout
   time.Sleep(timeout)
 
-  decided,val := sm.px.Status(seq)
+  decided, val := sm.px.Status(seq)
 
   var valOp Op
   if val != nil {
@@ -205,17 +209,17 @@ func (sm *ShardMaster) resolveOp(op Op) Config {
   for !decided || !OpEquals(valOp, op) {
     if (decided && !OpEquals(valOp, op)) || (seq <= sm.lastAppliedSeq) {
       sm.log("Seq=%d already decided", seq)
-      seq = sm.px.Max()+1
+      seq = sm.px.Max() + 1
       sm.px.Start(seq, op)
     }
 
     sm.log("Retry w/ seq=%d", seq)
     time.Sleep(timeout + RandMTime())
-    if timeout < 100 * time.Millisecond {
+    if timeout < 100*time.Millisecond {
       timeout *= 2
     }
 
-    decided,val = sm.px.Status(seq)
+    decided, val = sm.px.Status(seq)
     if val != nil {
       valOp = val.(Op)
     }
@@ -232,7 +236,7 @@ func (sm *ShardMaster) resolveOp(op Op) Config {
 
   if op.Operation == Query {
     num := op.Args.(QueryArgs).Num
-    config,_ := sm.applyQuery(num)
+    config, _ := sm.applyQuery(num)
 
     return *config
   }
@@ -240,14 +244,14 @@ func (sm *ShardMaster) resolveOp(op Op) Config {
   return Config{}
 }
 
-func (sm *ShardMaster) applyJoin(joinGid int64, servers []string) (*Config,Err) {
+func (sm *ShardMaster) applyJoin(joinGid int64, servers []string) (*Config, Err) {
   // Get newest config
-  config,num := sm.newestConfig()
-  newConfigNum := num+1
+  config, num := sm.newestConfig()
+  newConfigNum := num + 1
 
-  _,exists := config.Groups[joinGid]
+  _, exists := config.Groups[joinGid]
   if exists {
-    return &Config{},ErrGIDAlreadyJoined
+    return &Config{}, ErrGIDAlreadyJoined
   }
 
   // Add new gid into groups mapping
@@ -257,7 +261,7 @@ func (sm *ShardMaster) applyJoin(joinGid int64, servers []string) (*Config,Err) 
   shards := CopyShards(config.Shards)
 
   if len(groups) == 1 {
-    for i,_ := range shards {
+    for i, _ := range shards {
       shards[i] = joinGid
     }
   } else {
@@ -278,17 +282,17 @@ func (sm *ShardMaster) applyJoin(joinGid int64, servers []string) (*Config,Err) 
     }
   }
 
-  return MakeConfig(newConfigNum, shards, groups),OK
+  return MakeConfig(newConfigNum, shards, groups), OK
 }
 
-func (sm *ShardMaster) applyLeave(leaveGid int64) (*Config,Err) {
+func (sm *ShardMaster) applyLeave(leaveGid int64) (*Config, Err) {
   // Get newest config
-  config,num := sm.newestConfig()
-  newConfigNum := num+1
+  config, num := sm.newestConfig()
+  newConfigNum := num + 1
 
-  _,exists := config.Groups[leaveGid]
+  _, exists := config.Groups[leaveGid]
   if !exists {
-    return &Config{},ErrGIDAlreadyLeft
+    return &Config{}, ErrGIDAlreadyLeft
   }
 
   // Remove gid from groups mapping
@@ -298,7 +302,7 @@ func (sm *ShardMaster) applyLeave(leaveGid int64) (*Config,Err) {
   shards := CopyShards(config.Shards)
 
   if len(groups) == 0 {
-    for i,_ := range shards {
+    for i, _ := range shards {
       shards[i] = 0
     }
   } else {
@@ -309,27 +313,27 @@ func (sm *ShardMaster) applyLeave(leaveGid int64) (*Config,Err) {
 
     // Assign shard to new gid
     rotate := 0
-    for _,shard := range freeShards {
+    for _, shard := range freeShards {
       gid := leaveGid
       for gid == leaveGid {
-        gid = sorted[rotate % len(sorted)].GID
+        gid = sorted[rotate%len(sorted)].GID
         rotate += 1
       }
       shards[shard] = gid
     }
   }
 
-  return MakeConfig(newConfigNum, shards, groups),OK
+  return MakeConfig(newConfigNum, shards, groups), OK
 }
 
-func (sm *ShardMaster) applyMove(movingShard int, newGid int64) (*Config,Err) {
+func (sm *ShardMaster) applyMove(movingShard int, newGid int64) (*Config, Err) {
   // Get newest config
-  config,num := sm.newestConfig()
-  newConfigNum := num+1
+  config, num := sm.newestConfig()
+  newConfigNum := num + 1
 
-  _,exists := config.Groups[newGid]
+  _, exists := config.Groups[newGid]
   if !exists {
-    return &Config{},ErrGIDAlreadyLeft
+    return &Config{}, ErrGIDAlreadyLeft
   }
 
   groups := CopyGroups(config.Groups)
@@ -338,23 +342,23 @@ func (sm *ShardMaster) applyMove(movingShard int, newGid int64) (*Config,Err) {
   // Move shard into new gid
   shards[movingShard] = newGid
 
-  return MakeConfig(newConfigNum, shards, groups),OK
+  return MakeConfig(newConfigNum, shards, groups), OK
 }
 
-func (sm *ShardMaster) applyQuery(num int) (*Config,Err) {
+func (sm *ShardMaster) applyQuery(num int) (*Config, Err) {
   // Get newest config if requested config num out of range
   if num < 0 || num >= len(sm.configs) {
-    config,_ := sm.newestConfig()
-    return &config,OK
+    config, _ := sm.newestConfig()
+    return &config, OK
   }
 
-  return &sm.configs[num],OK
+  return &sm.configs[num], OK
 }
 
-func (sm *ShardMaster) applyOp(op *Op) (*Config,Err) {
+func (sm *ShardMaster) applyOp(op *Op) (*Config, Err) {
   // Return early for a noop
   if op.Operation == Noop {
-    return &Config{},ErrNoop
+    return &Config{}, ErrNoop
   }
 
   switch op.Operation {
@@ -373,12 +377,12 @@ func (sm *ShardMaster) applyOp(op *Op) (*Config,Err) {
   }
 
   // Should not reach this point
-  return &Config{},ErrInvalid
+  return &Config{}, ErrInvalid
 }
 
-func (sm *ShardMaster) newestConfig() (Config,int) {
-  i := len(sm.configs)-1
-  return sm.configs[i],i
+func (sm *ShardMaster) newestConfig() (Config, int) {
+  i := len(sm.configs) - 1
+  return sm.configs[i], i
 }
 
 func (sm *ShardMaster) tick() {
@@ -387,15 +391,15 @@ func (sm *ShardMaster) tick() {
 
   for sm.dead == false {
 
-    seq := sm.lastAppliedSeq+1
-    decided,result := sm.px.Status(seq)
+    seq := sm.lastAppliedSeq + 1
+    decided, result := sm.px.Status(seq)
 
     if decided {
       // apply the operation
-      op,_ := result.(Op)
+      op, _ := result.(Op)
 
       sm.log("Applying %s from seq=%d", op.Operation, seq)
-      config,err := sm.applyOp(&op)
+      config, err := sm.applyOp(&op)
       sm.lastAppliedSeq += 1
 
       sm.mu.Lock()
@@ -410,21 +414,21 @@ func (sm *ShardMaster) tick() {
     } else {
       // sm.log("Retry for seq=%d", seq)
 
-      if timeout >= 1 * time.Second {
+      if timeout >= 1*time.Second {
         sm.log("Try noop for seq=%d", seq)
         sm.px.Start(seq, Op{Operation: Noop})
 
         // wait for noop to return
         noopDone := false
         for !noopDone {
-          noopDone,_ = sm.px.Status(seq)
+          noopDone, _ = sm.px.Status(seq)
           time.Sleep(100 * time.Millisecond)
         }
       } else {
         // wait before retrying
         time.Sleep(timeout)
 
-        if timeout < 1 * time.Second {
+        if timeout < 1*time.Second {
           // expotential backoff
           timeout *= 2
         }
@@ -436,7 +440,7 @@ func (sm *ShardMaster) tick() {
 func (sm *ShardMaster) log(format string, a ...interface{}) (n int, err error) {
   if Debug {
     addr := "Srv#" + strconv.Itoa(sm.me)
-    n, err = fmt.Printf(addr + ": " + format + "\n", a...)
+    n, err = fmt.Printf(addr+": "+format+"\n", a...)
   }
   return
 }
@@ -475,9 +479,9 @@ func StartServer(servers []string, me int) *ShardMaster {
   sm.px = paxos.Make(servers, me, rpcs)
 
   os.Remove(servers[me])
-  l, e := net.Listen("unix", servers[me]);
+  l, e := net.Listen("unix", servers[me])
   if e != nil {
-    log.Fatal("listen error: ", e);
+    log.Fatal("listen error: ", e)
   }
   sm.l = l
 
@@ -488,10 +492,10 @@ func StartServer(servers []string, me int) *ShardMaster {
     for sm.dead == false {
       conn, err := sm.l.Accept()
       if err == nil && sm.dead == false {
-        if sm.unreliable && (rand.Int63() % 1000) < 100 {
+        if sm.unreliable && (rand.Int63()%1000) < 100 {
           // discard the request.
           conn.Close()
-        } else if sm.unreliable && (rand.Int63() % 1000) < 200 {
+        } else if sm.unreliable && (rand.Int63()%1000) < 200 {
           // process the request but force discard of reply.
           c1 := conn.(*net.UnixConn)
           f, _ := c1.File()

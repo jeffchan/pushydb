@@ -11,10 +11,11 @@ import "sync"
 
 type Clerk struct {
   servers []string
-  id string
-  mu sync.Mutex
+  id      string
+  mu      sync.Mutex
   counter uint64
 }
+
 const TickInterval = 100 * time.Millisecond
 
 func MakeClerk(servers []string) *Clerk {
@@ -33,9 +34,10 @@ func nrand() int64 {
 }
 
 const ClerkLog = false
+
 func (ck *Clerk) log(format string, a ...interface{}) (n int, err error) {
   if ClerkLog {
-    n, err = fmt.Printf(ck.id + ": " + format + "\n", a...)
+    n, err = fmt.Printf(ck.id+": "+format+"\n", a...)
   }
   return
 }
@@ -57,7 +59,7 @@ func (ck *Clerk) log(format string, a ...interface{}) (n int, err error) {
 // please don't change this function.
 //
 func call(srv string, rpcname string,
-          args interface{}, reply interface{}) bool {
+  args interface{}, reply interface{}) bool {
   c, errx := rpc.Dial("unix", srv)
   if errx != nil {
     return false

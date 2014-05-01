@@ -26,7 +26,7 @@ import "time"
 // received a ping from the primary or backup for a while, or
 // if there was no backup and a new server starts Pinging.
 //
-// The view server will not proceed to a new view until 
+// The view server will not proceed to a new view until
 // the primary from the current view acknowledges
 // that it is operating in the current view. This helps
 // ensure that there's at most one p/b primary operating at
@@ -36,7 +36,7 @@ import "time"
 type View struct {
   Viewnum uint
   Primary string
-  Backup string
+  Backup  string
 }
 
 // clients should send a Ping RPC this often,
@@ -58,8 +58,8 @@ const DeadPings = 5
 //
 
 type PingArgs struct {
-  Me string     // "host:port"
-  Viewnum uint  // caller's notion of current view #
+  Me      string // "host:port"
+  Viewnum uint   // caller's notion of current view #
 }
 
 type PingReply struct {

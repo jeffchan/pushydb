@@ -23,19 +23,19 @@ func DPrintf(format string, a ...interface{}) (n int, err error) {
 }
 
 type PBServer struct {
-  mu sync.Mutex
-  sync bool
-  l net.Listener
-  dead bool // for testing
+  mu         sync.Mutex
+  sync       bool
+  l          net.Listener
+  dead       bool // for testing
   unreliable bool // for testing
-  me string
-  vs *viewservice.Clerk
-  done sync.WaitGroup
-  finish chan interface{}
+  me         string
+  vs         *viewservice.Clerk
+  done       sync.WaitGroup
+  finish     chan interface{}
 
-  view *viewservice.View
-  table map[string]string
-  reqs map[string]string
+  view          *viewservice.View
+  table         map[string]string
+  reqs          map[string]string
   stateTransfer chan bool
 }
 
@@ -51,9 +51,10 @@ func (pb *PBServer) shortAddr() string {
 }
 
 const Log = false
+
 func (pb *PBServer) log(format string, a ...interface{}) (n int, err error) {
   if Log {
-    n, err = fmt.Printf(pb.shortAddr() + ": " + format + "\n", a...)
+    n, err = fmt.Printf(pb.shortAddr()+": "+format+"\n", a...)
   }
   return
 }
@@ -110,9 +111,9 @@ func (pb *PBServer) PutRelay(args *PutRelayArgs, reply *PutRelayReply) error {
   // if val != args.PreviousValue {
   //   reply.Err = ErrOutOfSync
   // } else {
-    pb.table[args.Key] = args.Value
-    pb.reqs[args.Id] = args.PreviousValue
-    reply.Err = OK
+  pb.table[args.Key] = args.Value
+  pb.reqs[args.Id] = args.PreviousValue
+  reply.Err = OK
   // }
 
   return nil
@@ -198,7 +199,7 @@ func (pb *PBServer) GetRelay(args *GetRelayArgs, reply *GetRelayReply) error {
     return nil
   }
 
-  val,ok := pb.table[args.Key]
+  val, ok := pb.table[args.Key]
   if !ok {
     pb.log("error: key %s does not exist", args.Key)
     reply.Err = ErrOutOfSync
@@ -292,16 +293,18 @@ func (pb *PBServer) tick() {
 
   old := pb.view
 
-  view,_ := pb.vs.Ping(old.Viewnum)
+  view, _ := pb.vs.Ping(old.Viewnum)
   pb.view = &view
 
-  if !pb.inView() { return }
+  if !pb.inView() {
+    return
+  }
 
   if (view.Viewnum - old.Viewnum) == 1 {
     pb.log("New view #%d, P: %s, B: %s", view.Viewnum, view.Primary, view.Backup)
   }
 
-  if (view.Viewnum - old.Viewnum) == 1 &&
+  if (view.Viewnum-old.Viewnum) == 1 &&
     old.Backup != view.Backup && old.Backup != pb.me {
 
     pb.log("New backup %s online in viewnum #%d", view.Backup, view.Viewnum)
@@ -353,9 +356,9 @@ func StartServer(vshost string, me string) *PBServer {
   rpcs.Register(pb)
 
   os.Remove(pb.me)
-  l, e := net.Listen("unix", pb.me);
+  l, e := net.Listen("unix", pb.me)
   if e != nil {
-    log.Fatal("listen error: ", e);
+    log.Fatal("listen error: ", e)
   }
   pb.l = l
 
@@ -366,10 +369,10 @@ func StartServer(vshost string, me string) *PBServer {
     for pb.dead == false {
       conn, err := pb.l.Accept()
       if err == nil && pb.dead == false {
-        if pb.unreliable && (rand.Int63() % 1000) < 100 {
+        if pb.unreliable && (rand.Int63()%1000) < 100 {
           // discard the request.
           conn.Close()
-        } else if pb.unreliable && (rand.Int63() % 1000) < 200 {
+        } else if pb.unreliable && (rand.Int63()%1000) < 200 {
           // process the request but force discard of reply.
           c1 := conn.(*net.UnixConn)
           f, _ := c1.File()

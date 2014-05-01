@@ -15,7 +15,7 @@ import "strconv"
 import "strings"
 
 const (
-  Debug = 0
+  Debug       = 0
   InitTimeout = 10 * time.Millisecond
 )
 
@@ -26,72 +26,73 @@ func DPrintf(format string, a ...interface{}) (n int, err error) {
   return
 }
 
-func ParseReqId(reqId string) (string,uint64) {
+func ParseReqId(reqId string) (string, uint64) {
   s := strings.Split(reqId, ":")
   clientId := s[0]
-  reqNum,_ := strconv.ParseUint(s[1], 10, 64)
-  return clientId,reqNum
+  reqNum, _ := strconv.ParseUint(s[1], 10, 64)
+  return clientId, reqNum
 }
 
 func randMTime() time.Duration {
-  return time.Duration(rand.Int() % 100)  * time.Millisecond
+  return time.Duration(rand.Int()%100) * time.Millisecond
 }
 
 type Op struct {
   Operation Operation
-  ClientId string
-  ReqId string
-  Key string
-  Value string
+  ClientId  string
+  ReqId     string
+  Key       string
+  Value     string
 }
 
 type Result struct {
   ReqId string
-  Val string
-  Err Err
+  Val   string
+  Err   Err
 }
 
 type KVPaxos struct {
-  mu sync.Mutex
-  l net.Listener
-  me int
-  dead bool // for testing
+  mu         sync.Mutex
+  l          net.Listener
+  me         int
+  dead       bool // for testing
   unreliable bool // for testing
-  px *paxos.Paxos
+  px         *paxos.Paxos
 
-  table map[string]string
-  cache map[string]*Result
+  table          map[string]string
+  cache          map[string]*Result
   lastAppliedSeq int
 }
 
 const ServerLog = false
+
 func (kv *KVPaxos) log(format string, a ...interface{}) (n int, err error) {
   if ServerLog {
     addr := "Srv#" + strconv.Itoa(kv.me)
-    n, err = fmt.Printf(addr + ": " + format + "\n", a...)
+    n, err = fmt.Printf(addr+": "+format+"\n", a...)
   }
   return
 }
 
-func (kv *KVPaxos) applyOp(op *Op) (string,Err) {
+func (kv *KVPaxos) applyOp(op *Op) (string, Err) {
   // Return early for a noop
   if op.Operation == Noop {
-    return "",ErrNoOp
+    return "", ErrNoOp
   }
 
   // Find last operation from same client
   kv.mu.Lock()
-  lastClientOp,exists := kv.cache[op.ClientId]
+  lastClientOp, exists := kv.cache[op.ClientId]
   kv.mu.Unlock()
 
   if exists {
-    _,lastReqNum := ParseReqId(lastClientOp.ReqId)
-    _,reqNum := ParseReqId(op.ReqId)
+    _, lastReqNum := ParseReqId(lastClientOp.ReqId)
+    _, reqNum := ParseReqId(op.ReqId)
 
     // Don't double apply any operation
     if reqNum <= lastReqNum {
       kv.log("Already applied %d", reqNum)
-      return "",ErrAlreadyApplied
+      return "", ErrAlreadyApplied
     }
   }
 
@@ -105,20 +106,20 @@ func (kv *KVPaxos) applyOp(op *Op) (string,Err) {
   }
 
   // Should not reach this point
-  return "",ErrInvalid
+  return "", ErrInvalid
 }
 
-func (kv *KVPaxos) applyGet(key string) (string,Err) {
+func (kv *KVPaxos) applyGet(key string) (string, Err) {
   val, ok := kv.table[key]
 
   if !ok {
-    return "",ErrNoKey
+    return "", ErrNoKey
   }
 
-  return val,OK
+  return val, OK
 }
 
-func (kv *KVPaxos) applyPut(key string, val string, dohash bool) (string,Err) {
+func (kv *KVPaxos) applyPut(key string, val string, dohash bool) (string, Err) {
   oldval, ok := kv.table[key]
   if !ok {
     oldval = ""
@@ -131,15 +132,15 @@ func (kv *KVPaxos) applyPut(key string, val string, dohash bool) (string,Err) {
 
   kv.table[key] = newval
 
-  return oldval,OK
+  return oldval, OK
 }
 
-func (kv *KVPaxos) resolveOp(op Op) (string,Err) {
-  seq := kv.px.Max()+1
+func (kv *KVPaxos) resolveOp(op Op) (string, Err) {
+  seq := kv.px.Max() + 1
   clientId := op.ClientId
 
   kv.mu.Lock()
-  dup,exists := kv.cache[clientId]
+  dup, exists := kv.cache[clientId]
   kv.mu.Unlock()
 
   if exists && dup.ReqId == op.ReqId {
@@ -151,21 +152,21 @@ func (kv *KVPaxos) resolveOp(op Op) (string,Err) {
   to := InitTimeout
   time.Sleep(to)
 
-  decided,val := kv.px.Status(seq)
+  decided, val := kv.px.Status(seq)
   for !decided || val != op {
     if (decided && val != op) || (seq <= kv.lastAppliedSeq) {
       kv.log("Seq=%d already decided", seq)
-      seq = kv.px.Max()+1
+      seq = kv.px.Max() + 1
       kv.px.Start(seq, op)
     }
 
     // kv.log("Retry w/ seq=%d", seq)
     time.Sleep(to + randMTime())
-    if to < 100 * time.Millisecond {
+    if to < 100*time.Millisecond {
       to *= 2
     }
 
-    decided,val = kv.px.Status(seq)
+    decided, val = kv.px.Status(seq)
   }
 
   kv.log("Seq=%d decided!", seq)
@@ -176,7 +177,7 @@ func (kv *KVPaxos) resolveOp(op Op) (string,Err) {
   }
 
   kv.mu.Lock()
-  result,exists := kv.cache[clientId]
+  result, exists := kv.cache[clientId]
   kv.mu.Unlock()
 
   kv.px.Done(seq)
@@ -191,13 +192,13 @@ func (kv *KVPaxos) resolveOp(op Op) (string,Err) {
 
 func (kv *KVPaxos) Get(args *GetArgs, reply *GetReply) error {
   key := args.Key
-  clientId,_ := ParseReqId(args.ReqId)
+  clientId, _ := ParseReqId(args.ReqId)
 
   kv.log("Get receive, key=%s, clientId=%s", key, clientId)
 
   op := Op{Operation: Get, ClientId: clientId, ReqId: args.ReqId, Key: key}
 
-  val,err := kv.resolveOp(op)
+  val, err := kv.resolveOp(op)
   reply.Value = val
   reply.Err = err
 
@@ -209,7 +210,7 @@ func (kv *KVPaxos) Get(args *GetArgs, reply *GetReply) error {
 func (kv *KVPaxos) Put(args *PutArgs, reply *PutReply) error {
   key := args.Key
   val := args.Value
-  clientId,_ := ParseReqId(args.ReqId)
+  clientId, _ := ParseReqId(args.ReqId)
 
   kv.log("Put receive, key=%s, val=%s, clientId=%s", key, val, clientId)
 
@@ -222,7 +223,7 @@ func (kv *KVPaxos) Put(args *PutArgs, reply *PutReply) error {
 
   op := Op{Operation: operation, ClientId: clientId, ReqId: args.ReqId, Key: key, Value: val}
 
-  prev,err := kv.resolveOp(op)
+  prev, err := kv.resolveOp(op)
   reply.PreviousValue = prev
   reply.Err = err
 
@@ -237,13 +238,13 @@ func (kv *KVPaxos) tick() {
 
   for kv.dead == false {
 
-    seq := kv.lastAppliedSeq+1
-    decided,result := kv.px.Status(seq)
+    seq := kv.lastAppliedSeq + 1
+    decided, result := kv.px.Status(seq)
 
     if decided {
       // apply the operation
-      op,_ := result.(Op)
-      val,err := kv.applyOp(&op)
+      op, _ := result.(Op)
+      val, err := kv.applyOp(&op)
 
       kv.mu.Lock()
       if err == OK || err == ErrNoKey {
@@ -261,21 +262,21 @@ func (kv *KVPaxos) tick() {
     } else {
       // kv.log("Retry for seq=%d", seq)
 
-      if timeout >= 1 * time.Second {
+      if timeout >= 1*time.Second {
         kv.log("Try noop for seq=%d", seq)
         kv.px.Start(seq, Op{Operation: Noop})
 
         // wait for noop to return
         noopDone := false
         for !noopDone {
-          noopDone,_ = kv.px.Status(seq)
+          noopDone, _ = kv.px.Status(seq)
           time.Sleep(100 * time.Millisecond)
         }
       } else {
         // wait before retrying
         time.Sleep(timeout)
 
-        if timeout < 1 * time.Second {
+        if timeout < 1*time.Second {
           // expotential backoff
           timeout *= 2
         }
@@ -317,12 +318,11 @@ func StartServer(servers []string, me int) *KVPaxos {
   kv.px = paxos.Make(servers, me, rpcs)
 
   os.Remove(servers[me])
-  l, e := net.Listen("unix", servers[me]);
+  l, e := net.Listen("unix", servers[me])
   if e != nil {
-    log.Fatal("listen error: ", e);
+    log.Fatal("listen error: ", e)
   }
   kv.l = l
-
 
   // please do not change any of the following code,
   // or do anything to subvert it.
@@ -331,10 +331,10 @@ func StartServer(servers []string, me int) *KVPaxos {
     for kv.dead == false {
       conn, err := kv.l.Accept()
       if err == nil && kv.dead == false {
-        if kv.unreliable && (rand.Int63() % 1000) < 100 {
+        if kv.unreliable && (rand.Int63()%1000) < 100 {
           // discard the request.
           conn.Close()
-        } else if kv.unreliable && (rand.Int63() % 1000) < 200 {
+        } else if kv.unreliable && (rand.Int63()%1000) < 200 {
           // process the request but force discard of reply.
           c1 := conn.(*net.UnixConn)
           f, _ := c1.File()
@@ -360,4 +360,3 @@ func StartServer(servers []string, me int) *KVPaxos {
 
   return kv
 }
-

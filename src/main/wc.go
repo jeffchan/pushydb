@@ -16,7 +16,7 @@ func Map(value string) *list.List {
   split := func(r rune) bool { return !unicode.IsLetter(r) }
   words := strings.FieldsFunc(value, split)
   for _, w := range words {
-    l.PushBack(mapreduce.KeyValue{w, ""});
+    l.PushBack(mapreduce.KeyValue{w, ""})
   }
   return l
 }
@@ -39,7 +39,7 @@ func main() {
     } else {
       mr := mapreduce.MakeMapReduce(5, 3, os.Args[2], os.Args[3])
       // Wait until MR is done
-      <- mr.DoneChannel
+      <-mr.DoneChannel
     }
   } else {
     mapreduce.RunWorker(os.Args[2], os.Args[3], Map, Reduce, 100)

@@ -12,7 +12,6 @@ type Clerk struct {
   // Your definitions here.
 }
 
-
 func MakeClerk(primary string, backup string) *Clerk {
   ck := new(Clerk)
   ck.servers[0] = primary
@@ -38,13 +37,13 @@ func MakeClerk(primary string, backup string) *Clerk {
 // please don't change this function.
 //
 func call(srv string, rpcname string,
-          args interface{}, reply interface{}) bool {
+  args interface{}, reply interface{}) bool {
   c, errx := rpc.Dial("unix", srv)
   if errx != nil {
     return false
   }
   defer c.Close()
-    
+
   err := c.Call(rpcname, args, reply)
   if err == nil {
     return true
@@ -66,16 +65,15 @@ func (ck *Clerk) Lock(lockname string) bool {
   args := &LockArgs{}
   args.Lockname = lockname
   var reply LockReply
-  
+
   // send an RPC request, wait for the reply.
   ok := call(ck.servers[0], "LockServer.Lock", args, &reply)
   if ok == false {
     return false
   }
-  
+
   return reply.OK
 }
-
 
 //
 // ask the lock service to unlock a lock.

@@ -38,7 +38,7 @@ func ndecided(t *testing.T, pxa []*Paxos, seq int) int {
   return count
 }
 
-func waitn(t *testing.T, pxa[]*Paxos, seq int, wanted int) {
+func waitn(t *testing.T, pxa []*Paxos, seq int, wanted int) {
   to := 10 * time.Millisecond
   for iters := 0; iters < 30; iters++ {
     if ndecided(t, pxa, seq) >= wanted {
@@ -55,11 +55,11 @@ func waitn(t *testing.T, pxa[]*Paxos, seq int, wanted int) {
   }
 }
 
-func waitmajority(t *testing.T, pxa[]*Paxos, seq int) {
-  waitn(t, pxa, seq, (len(pxa) / 2) + 1)
+func waitmajority(t *testing.T, pxa []*Paxos, seq int) {
+  waitn(t, pxa, seq, (len(pxa)/2)+1)
 }
 
-func checkmax(t *testing.T, pxa[]*Paxos, seq int, max int) {
+func checkmax(t *testing.T, pxa []*Paxos, seq int, max int) {
   time.Sleep(3 * time.Second)
   nd := ndecided(t, pxa, seq)
   if nd > max {
@@ -187,14 +187,14 @@ func TestDeaf(t *testing.T) {
   pxa[1].Start(1, "goodbye")
   waitmajority(t, pxa, 1)
   time.Sleep(1 * time.Second)
-  if ndecided(t, pxa, 1) != npaxos - 2 {
+  if ndecided(t, pxa, 1) != npaxos-2 {
     t.Fatalf("a deaf peer heard about a decision")
   }
 
   pxa[0].Start(1, "xxx")
   waitn(t, pxa, 1, npaxos-1)
   time.Sleep(1 * time.Second)
-  if ndecided(t, pxa, 1) != npaxos - 1 {
+  if ndecided(t, pxa, 1) != npaxos-1 {
     t.Fatalf("a deaf peer heard about a decision")
   }
 
@@ -211,7 +211,7 @@ func TestForget(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   var pxh []string = make([]string, npaxos)
   defer cleanup(pxa)
-  
+
   for i := 0; i < npaxos; i++ {
     pxh[i] = port("gc", i)
   }
@@ -263,7 +263,7 @@ func TestForget(t *testing.T) {
     pxa[i].Done(1)
   }
   for i := 0; i < npaxos; i++ {
-    pxa[i].Start(8 + i, "xx")
+    pxa[i].Start(8+i, "xx")
   }
   allok := false
   for iters := 0; iters < 12; iters++ {
@@ -293,7 +293,7 @@ func TestManyForget(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   var pxh []string = make([]string, npaxos)
   defer cleanup(pxa)
-  
+
   for i := 0; i < npaxos; i++ {
     pxh[i] = port("manygc", i)
   }
@@ -312,7 +312,7 @@ func TestManyForget(t *testing.T) {
     for i := 0; i < len(na); i++ {
       seq := na[i]
       j := (rand.Int() % npaxos)
-      v := rand.Int() 
+      v := rand.Int()
       pxa[j].Start(seq, v)
       runtime.Gosched()
     }
@@ -362,7 +362,7 @@ func TestForgetMem(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   var pxh []string = make([]string, npaxos)
   defer cleanup(pxa)
-  
+
   for i := 0; i < npaxos; i++ {
     pxh[i] = port("gcmem", i)
   }
@@ -381,7 +381,7 @@ func TestForgetMem(t *testing.T) {
   for i := 1; i <= 10; i++ {
     big := make([]byte, 1000000)
     for j := 0; j < len(big); j++ {
-      big[j] = byte('a' + rand.Int() % 26)
+      big[j] = byte('a' + rand.Int()%26)
     }
     pxa[0].Start(i, string(big))
     waitn(t, pxa, i, npaxos)
@@ -396,7 +396,7 @@ func TestForgetMem(t *testing.T) {
     pxa[i].Done(10)
   }
   for i := 0; i < npaxos; i++ {
-    pxa[i].Start(11 + i, "z")
+    pxa[i].Start(11+i, "z")
   }
   time.Sleep(3 * time.Second)
   for i := 0; i < npaxos; i++ {
@@ -462,7 +462,7 @@ func TestRPCCount(t *testing.T) {
   ninst2 := 5
   for i := 0; i < ninst2; i++ {
     for j := 0; j < npaxos; j++ {
-      go pxa[j].Start(seq, j + (i * 10))
+      go pxa[j].Start(seq, j+(i*10))
     }
     waitn(t, pxa, seq, npaxos)
     seq++
@@ -514,11 +514,11 @@ func TestMany(t *testing.T) {
   for seq := 1; seq < ninst; seq++ {
     // only 5 active instances, to limit the
     // number of file descriptors.
-    for seq >= 5 && ndecided(t, pxa, seq - 5) < npaxos {
+    for seq >= 5 && ndecided(t, pxa, seq-5) < npaxos {
       time.Sleep(20 * time.Millisecond)
     }
     for i := 0; i < npaxos; i++ {
-      pxa[i].Start(seq, (seq * 10) + i)
+      pxa[i].Start(seq, (seq*10)+i)
     }
   }
 
@@ -541,7 +541,7 @@ func TestMany(t *testing.T) {
 //
 // a peer starts up, with proposal, after others decide.
 // then another peer starts, without a proposal.
-// 
+//
 func TestOld(t *testing.T) {
   runtime.GOMAXPROCS(4)
 
@@ -602,11 +602,11 @@ func TestManyUnreliable(t *testing.T) {
   for seq := 1; seq < ninst; seq++ {
     // only 3 active instances, to limit the
     // number of file descriptors.
-    for seq >= 3 && ndecided(t, pxa, seq - 3) < npaxos {
+    for seq >= 3 && ndecided(t, pxa, seq-3) < npaxos {
       time.Sleep(20 * time.Millisecond)
     }
     for i := 0; i < npaxos; i++ {
-      pxa[i].Start(seq, (seq * 10) + i)
+      pxa[i].Start(seq, (seq*10)+i)
     }
   }
 
@@ -622,7 +622,7 @@ func TestManyUnreliable(t *testing.T) {
     }
     time.Sleep(100 * time.Millisecond)
   }
-  
+
   fmt.Printf("  ... Passed\n")
 }
 
@@ -693,15 +693,15 @@ func TestPartition(t *testing.T) {
 
   fmt.Printf("Test: No decision if partitioned ...\n")
 
-  part(t, tag, npaxos, []int{0,2}, []int{1,3}, []int{4})
+  part(t, tag, npaxos, []int{0, 2}, []int{1, 3}, []int{4})
   pxa[1].Start(seq, 111)
   checkmax(t, pxa, seq, 0)
-  
+
   fmt.Printf("  ... Passed\n")
 
   fmt.Printf("Test: Decision in majority partition ...\n")
 
-  part(t, tag, npaxos, []int{0}, []int{1,2,3}, []int{4})
+  part(t, tag, npaxos, []int{0}, []int{1, 2, 3}, []int{4})
   time.Sleep(2 * time.Second)
   waitmajority(t, pxa, seq)
 
@@ -711,7 +711,7 @@ func TestPartition(t *testing.T) {
 
   pxa[0].Start(seq, 1000) // poke them
   pxa[4].Start(seq, 1004)
-  part(t, tag, npaxos, []int{0,1,2,3,4}, []int{}, []int{})
+  part(t, tag, npaxos, []int{0, 1, 2, 3, 4}, []int{}, []int{})
 
   waitn(t, pxa, seq, npaxos)
 
@@ -722,22 +722,21 @@ func TestPartition(t *testing.T) {
   for iters := 0; iters < 20; iters++ {
     seq++
 
-    part(t, tag, npaxos, []int{0,1,2}, []int{3,4}, []int{})
-    pxa[0].Start(seq, seq * 10)
-    pxa[3].Start(seq, (seq * 10) + 1)
+    part(t, tag, npaxos, []int{0, 1, 2}, []int{3, 4}, []int{})
+    pxa[0].Start(seq, seq*10)
+    pxa[3].Start(seq, (seq*10)+1)
     waitmajority(t, pxa, seq)
     if ndecided(t, pxa, seq) > 3 {
       t.Fatalf("too many decided")
     }
-    
-    part(t, tag, npaxos, []int{0,1}, []int{2,3,4}, []int{})
+
+    part(t, tag, npaxos, []int{0, 1}, []int{2, 3, 4}, []int{})
     waitn(t, pxa, seq, npaxos)
   }
 
   fmt.Printf("  ... Passed\n")
 
   fmt.Printf("Test: One peer switches partitions, unreliable ...\n")
-
 
   for iters := 0; iters < 20; iters++ {
     seq++
@@ -746,16 +745,16 @@ func TestPartition(t *testing.T) {
       pxa[i].unreliable = true
     }
 
-    part(t, tag, npaxos, []int{0,1,2}, []int{3,4}, []int{})
+    part(t, tag, npaxos, []int{0, 1, 2}, []int{3, 4}, []int{})
     for i := 0; i < npaxos; i++ {
-      pxa[i].Start(seq, (seq * 10) + i)
+      pxa[i].Start(seq, (seq*10)+i)
     }
     waitn(t, pxa, seq, 3)
     if ndecided(t, pxa, seq) > 3 {
       t.Fatalf("too many decided")
     }
-    
-    part(t, tag, npaxos, []int{0,1}, []int{2,3,4}, []int{})
+
+    part(t, tag, npaxos, []int{0, 1}, []int{2, 3, 4}, []int{})
 
     for i := 0; i < npaxos; i++ {
       pxa[i].unreliable = false
@@ -797,7 +796,7 @@ func TestLots(t *testing.T) {
   // re-partition periodically
   ch1 := make(chan bool)
   go func() {
-    defer func(){ ch1 <- true }()
+    defer func() { ch1 <- true }()
     for done == false {
       var a [npaxos]int
       for i := 0; i < npaxos; i++ {
@@ -813,7 +812,7 @@ func TestLots(t *testing.T) {
         }
       }
       part(t, tag, npaxos, pa[0], pa[1], pa[2])
-      time.Sleep(time.Duration(rand.Int63() % 200) * time.Millisecond)
+      time.Sleep(time.Duration(rand.Int63()%200) * time.Millisecond)
     }
   }()
 
@@ -821,8 +820,8 @@ func TestLots(t *testing.T) {
 
   // periodically start a new instance
   ch2 := make(chan bool)
-  go func () {
-    defer func() { ch2 <- true } ()
+  go func() {
+    defer func() { ch2 <- true }()
     for done == false {
       // how many instances are in progress?
       nd := 0
@@ -831,13 +830,13 @@ func TestLots(t *testing.T) {
           nd++
         }
       }
-      if seq - nd < 10 {
+      if seq-nd < 10 {
         for i := 0; i < npaxos; i++ {
-          pxa[i].Start(seq, rand.Int() % 10)
+          pxa[i].Start(seq, rand.Int()%10)
         }
         seq++
       }
-      time.Sleep(time.Duration(rand.Int63() % 300) * time.Millisecond)
+      time.Sleep(time.Duration(rand.Int63()%300) * time.Millisecond)
     }
   }()
 
@@ -849,21 +848,21 @@ func TestLots(t *testing.T) {
       for i := 0; i < seq; i++ {
         ndecided(t, pxa, i)
       }
-      time.Sleep(time.Duration(rand.Int63() % 300) * time.Millisecond)
+      time.Sleep(time.Duration(rand.Int63()%300) * time.Millisecond)
     }
   }()
 
   time.Sleep(20 * time.Second)
   done = true
-  <- ch1
-  <- ch2
-  <- ch3
+  <-ch1
+  <-ch2
+  <-ch3
 
   // repair, then check that all instances decided.
   for i := 0; i < npaxos; i++ {
     pxa[i].unreliable = false
   }
-  part(t, tag, npaxos, []int{0,1,2,3,4}, []int{}, []int{})
+  part(t, tag, npaxos, []int{0, 1, 2, 3, 4}, []int{}, []int{})
   time.Sleep(5 * time.Second)
 
   for i := 0; i < seq; i++ {

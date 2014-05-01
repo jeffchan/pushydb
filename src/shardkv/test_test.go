@@ -44,7 +44,7 @@ func cleanup(sa [][]*ShardKV) {
 
 func setup(tag string, unreliable bool) ([]string, []int64, [][]string, [][]*ShardKV, func()) {
   runtime.GOMAXPROCS(4)
-  
+
   const nmasters = 3
   var sma []*shardmaster.ShardMaster = make([]*shardmaster.ShardMaster, nmasters)
   var smh []string = make([]string, nmasters)
@@ -56,8 +56,8 @@ func setup(tag string, unreliable bool) ([]string, []int64, [][]string, [][]*Sha
     sma[i] = shardmaster.StartServer(smh, i)
   }
 
-  const ngroups = 3   // replica groups
-  const nreplicas = 3 // servers per group
+  const ngroups = 3                 // replica groups
+  const nreplicas = 3               // servers per group
   gids := make([]int64, ngroups)    // each group ID
   ha := make([][]string, ngroups)   // ShardKV ports, [group][replica]
   sa := make([][]*ShardKV, ngroups) // ShardKVs
@@ -75,7 +75,7 @@ func setup(tag string, unreliable bool) ([]string, []int64, [][]string, [][]*Sha
     }
   }
 
-  clean := func() { cleanup(sa) ; mcleanup(sma) }
+  clean := func() { cleanup(sa); mcleanup(sma) }
   return smh, gids, ha, sa, clean
 }
 
@@ -122,7 +122,7 @@ func TestBasic(t *testing.T) {
       ck.Put(keys[i], vals[i])
     }
   }
-  
+
   // are keys still there after leaves?
   for g := 0; g < len(gids)-1; g++ {
     mck.Leave(gids[g])
@@ -160,7 +160,7 @@ func TestMove(t *testing.T) {
   // add group 1.
   mck.Join(gids[1], ha[1])
   time.Sleep(5 * time.Second)
-  
+
   // check that keys are still there.
   for i := 0; i < shardmaster.NShards; i++ {
     if ck.Get(string('0'+i)) != string('0'+i) {
@@ -178,7 +178,7 @@ func TestMove(t *testing.T) {
   for i := 0; i < shardmaster.NShards; i++ {
     go func(me int) {
       myck := MakeClerk(smh)
-      v := myck.Get(string('0'+me))
+      v := myck.Get(string('0' + me))
       if v == string('0'+me) {
         mu.Lock()
         count++
@@ -191,11 +191,11 @@ func TestMove(t *testing.T) {
 
   time.Sleep(10 * time.Second)
 
-  if count > shardmaster.NShards / 3 && count < 2*(shardmaster.NShards/3) {
+  if count > shardmaster.NShards/3 && count < 2*(shardmaster.NShards/3) {
     fmt.Printf("  ... Passed\n")
   } else {
     t.Fatalf("%v keys worked after killing 1/2 of groups; wanted %v",
-      count, shardmaster.NShards / 2)
+      count, shardmaster.NShards/2)
   }
 }
 
@@ -216,7 +216,7 @@ func TestLimp(t *testing.T) {
   }
 
   for g := 0; g < len(sa); g++ {
-    sa[g][rand.Int() % len(sa[g])].kill()
+    sa[g][rand.Int()%len(sa[g])].kill()
   }
 
   keys := make([]string, 10)
@@ -241,7 +241,7 @@ func TestLimp(t *testing.T) {
       ck.Put(keys[i], vals[i])
     }
   }
-  
+
   // are keys still there after leaves?
   for g := 0; g < len(gids)-1; g++ {
     mck.Leave(gids[g])
@@ -297,16 +297,16 @@ func doConcurrent(t *testing.T, unreliable bool) {
           t.Fatalf("Get(%v) expected %v got %v\n", key, last, v)
         }
 
-        mymck.Move(rand.Int() % shardmaster.NShards,
-          gids[rand.Int() % len(gids)])
+        mymck.Move(rand.Int()%shardmaster.NShards,
+          gids[rand.Int()%len(gids)])
 
-        time.Sleep(time.Duration(rand.Int() % 30) * time.Millisecond)
+        time.Sleep(time.Duration(rand.Int()%30) * time.Millisecond)
       }
     }(i)
   }
 
   for i := 0; i < npara; i++ {
-    x := <- ca[i]
+    x := <-ca[i]
     if x == false {
       t.Fatalf("something is wrong")
     }

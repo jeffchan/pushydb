@@ -3,32 +3,33 @@ package pbservice
 import "hash/fnv"
 
 const (
-  OK = "OK"
-  ErrNoKey = "ErrNoKey"
+  OK             = "OK"
+  ErrNoKey       = "ErrNoKey"
   ErrWrongServer = "ErrWrongServer"
-  ErrDupRequest = "ErrDupRequest"
-  ErrOutOfSync = "ErrOutOfSync"
-  ErrBusy = "ErrBusy"
+  ErrDupRequest  = "ErrDupRequest"
+  ErrOutOfSync   = "ErrOutOfSync"
+  ErrBusy        = "ErrBusy"
 )
+
 type Err string
 
 type PutArgs struct {
-  Key string
-  Value string
+  Key    string
+  Value  string
   DoHash bool // For PutHash
-  Id string
+  Id     string
 }
 
 type PutReply struct {
-  Err Err
+  Err           Err
   PreviousValue string // For PutHash
 }
 
 type PutRelayArgs struct {
-  Key string
-  Value string
+  Key           string
+  Value         string
   PreviousValue string
-  Id string
+  Id            string
 }
 
 type PutRelayReply struct {
@@ -37,18 +38,18 @@ type PutRelayReply struct {
 
 type GetArgs struct {
   Key string
-  Id string
+  Id  string
 }
 
 type GetReply struct {
-  Err Err
+  Err   Err
   Value string
 }
 
 type GetRelayArgs struct {
-  Key string
+  Key   string
   Value string
-  Id string
+  Id    string
 }
 
 type GetRelayReply struct {
@@ -61,8 +62,8 @@ type SyncArgs struct {
 
 type SyncReply struct {
   Table map[string]string
-  Reqs map[string]string
-  Err Err
+  Reqs  map[string]string
+  Err   Err
 }
 
 func hash(s string) uint32 {
@@ -70,4 +71,3 @@ func hash(s string) uint32 {
   h.Write([]byte(s))
   return h.Sum32()
 }
-

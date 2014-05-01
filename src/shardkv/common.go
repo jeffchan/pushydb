@@ -1,4 +1,5 @@
 package shardkv
+
 import "hash/fnv"
 
 //
@@ -11,52 +12,53 @@ import "hash/fnv"
 //
 
 const (
-  OK = "OK"
-  ErrNoKey = "ErrNoKey"
-  ErrWrongGroup = "ErrWrongGroup"
+  OK                = "OK"
+  ErrNoKey          = "ErrNoKey"
+  ErrWrongGroup     = "ErrWrongGroup"
   ErrAlreadyApplied = "ErrAlreadyApplied"
-  ErrNoOp = "ErrNoOp"
-  ErrInvalid = "ErrInvalid"
-  ErrWrongView = "ErrWrongView"
+  ErrNoOp           = "ErrNoOp"
+  ErrInvalid        = "ErrInvalid"
+  ErrWrongView      = "ErrWrongView"
 )
+
 type Err string
 
 type PutArgs struct {
-  Key string
-  Value string
-  DoHash bool  // For PutHash
-  ReqId string
+  Key    string
+  Value  string
+  DoHash bool // For PutHash
+  ReqId  string
 }
 
 type PutReply struct {
-  Err Err
-  PreviousValue string   // For PutHash
+  Err           Err
+  PreviousValue string // For PutHash
 }
 
 type GetArgs struct {
-  Key string
+  Key   string
   ReqId string
 }
 
 type GetReply struct {
-  Err Err
+  Err   Err
   Value string
 }
 
 type ReconfigArgs struct {
   FromConfigNum int
-  ToConfigNum int
+  ToConfigNum   int
 }
 
 type TransferArgs struct {
   ConfigNum int
-  Shard int
+  Shard     int
 }
 
 type TransferReply struct {
-  Err Err
+  Err   Err
   Table map[string]string
-  Reqs map[string]*Result
+  Reqs  map[string]*Result
 }
 
 func hash(s string) uint32 {

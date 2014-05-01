@@ -4,6 +4,7 @@ import "testing"
 import "runtime"
 import "strconv"
 import "os"
+
 // import "time"
 import "fmt"
 import "math/rand"
@@ -70,7 +71,7 @@ func check(t *testing.T, groups []int64, ck *Clerk) {
       min = counts[g]
     }
   }
-  if max > min + 1 {
+  if max > min+1 {
     t.Fatalf("max %v too much larger than min %v", max, min)
   }
 }
@@ -110,11 +111,11 @@ func TestBasic(t *testing.T) {
 
   var gid2 int64 = 2
   ck.Join(gid2, []string{"a", "b", "c"})
-  check(t, []int64{gid1,gid2}, ck)
+  check(t, []int64{gid1, gid2}, ck)
   cfa[2] = ck.Query(-1)
 
   ck.Join(gid2, []string{"a", "b", "c"})
-  check(t, []int64{gid1,gid2}, ck)
+  check(t, []int64{gid1, gid2}, ck)
   cfa[3] = ck.Query(-1)
 
   cfx := ck.Query(-1)
@@ -175,7 +176,7 @@ func TestBasic(t *testing.T) {
     ck.Join(gid4, []string{"4a", "4b", "4c"})
     for i := 0; i < NShards; i++ {
       cf := ck.Query(-1)
-      if i < NShards / 2 {
+      if i < NShards/2 {
         ck.Move(i, gid3)
         if cf.Shards[i] != gid3 {
           cf1 := ck.Query(-1)
@@ -195,15 +196,15 @@ func TestBasic(t *testing.T) {
     }
     cf2 := ck.Query(-1)
     for i := 0; i < NShards; i++ {
-      if i < NShards / 2 {
+      if i < NShards/2 {
         if cf2.Shards[i] != gid3 {
           t.Fatalf("expected shard %v on gid %v actually %v",
-                   i, gid3, cf2.Shards[i])
+            i, gid3, cf2.Shards[i])
         }
       } else {
         if cf2.Shards[i] != gid4 {
           t.Fatalf("expected shard %v on gid %v actually %v",
-                   i, gid4, cf2.Shards[i])
+            i, gid4, cf2.Shards[i])
         }
       }
     }
@@ -218,18 +219,18 @@ func TestBasic(t *testing.T) {
   gids := make([]int64, npara)
   var ca [npara]chan bool
   for xi := 0; xi < npara; xi++ {
-    gids[xi] = int64(xi+1)
+    gids[xi] = int64(xi + 1)
     ca[xi] = make(chan bool)
     go func(i int) {
       defer func() { ca[i] <- true }()
       var gid int64 = gids[i]
       cka[(i+0)%nservers].Join(gid+1000, []string{"a", "b", "c"})
       cka[(i+0)%nservers].Join(gid, []string{"a", "b", "c"})
-      cka[(i+1)%nservers].Leave(gid+1000)
+      cka[(i+1)%nservers].Leave(gid + 1000)
     }(xi)
   }
   for i := 0; i < npara; i++ {
-    <- ca[i]
+    <-ca[i]
   }
   check(t, gids, ck)
 
@@ -237,10 +238,10 @@ func TestBasic(t *testing.T) {
 
   fmt.Printf("Test: Min advances after joins ...\n")
 
-  for i, sm := range(sma) {
-      if sm.px.Min() <= 0 {
-          t.Fatalf("Min() for %s did not advance", kvh[i])
-      }
+  for i, sm := range sma {
+    if sm.px.Min() <= 0 {
+      t.Fatalf("Min() for %s did not advance", kvh[i])
+    }
   }
 
   fmt.Printf("  ... Passed\n")
@@ -249,7 +250,7 @@ func TestBasic(t *testing.T) {
 
   c1 := ck.Query(-1)
   for i := 0; i < 5; i++ {
-    ck.Join(int64(npara+1+i), []string{"a","b","c"})
+    ck.Join(int64(npara+1+i), []string{"a", "b", "c"})
   }
   c2 := ck.Query(-1)
   for i := int64(1); i <= npara; i++ {
@@ -267,7 +268,7 @@ func TestBasic(t *testing.T) {
   fmt.Printf("Test: Minimal transfers after leaves ...\n")
 
   for i := 0; i < 5; i++ {
-    ck.Leave(int64(npara+1+i))
+    ck.Leave(int64(npara + 1 + i))
   }
   c3 := ck.Query(-1)
   for i := int64(1); i <= npara; i++ {
@@ -314,20 +315,20 @@ func TestUnreliable(t *testing.T) {
   gids := make([]int64, npara)
   var ca [npara]chan bool
   for xi := 0; xi < npara; xi++ {
-    gids[xi] = int64(xi+1)
+    gids[xi] = int64(xi + 1)
     ca[xi] = make(chan bool)
     go func(i int) {
       defer func() { ca[i] <- true }()
       var gid int64 = gids[i]
-      cka[1 + (rand.Int() % 2)].Join(gid+1000, []string{"a", "b", "c"})
-      cka[1 + (rand.Int() % 2)].Join(gid, []string{"a", "b", "c"})
-      cka[1 + (rand.Int() % 2)].Leave(gid+1000)
+      cka[1+(rand.Int()%2)].Join(gid+1000, []string{"a", "b", "c"})
+      cka[1+(rand.Int()%2)].Join(gid, []string{"a", "b", "c"})
+      cka[1+(rand.Int()%2)].Leave(gid + 1000)
       // server 0 won't be able to hear any RPCs.
       os.Remove(kvh[0])
     }(xi)
   }
   for i := 0; i < npara; i++ {
-    <- ca[i]
+    <-ca[i]
   }
   check(t, gids, ck)
 

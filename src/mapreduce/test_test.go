@@ -1,4 +1,5 @@
 package mapreduce
+
 import "testing"
 import "fmt"
 import "time"
@@ -11,8 +12,8 @@ import "sort"
 import "strconv"
 
 const (
-  nNumber= 100000
-  nMap = 100
+  nNumber = 100000
+  nMap    = 100
   nReduce = 50
 )
 
@@ -23,7 +24,7 @@ const (
 func MapFunc(value string) *list.List {
   DPrintf("Map %v\n", value)
   res := list.New()
-  words := strings.Fields(value);
+  words := strings.Fields(value)
   for _, w := range words {
     kv := KeyValue{w, ""}
     res.PushBack(kv)
@@ -44,12 +45,12 @@ func ReduceFunc(key string, values *list.List) string {
 func check(t *testing.T, file string) {
   input, err := os.Open(file)
   if err != nil {
-    log.Fatal("check: ", err);
+    log.Fatal("check: ", err)
   }
   defer input.Close()
   output, err := os.Open("mrtmp." + file)
   if err != nil {
-    log.Fatal("check: ", err);
+    log.Fatal("check: ", err)
   }
   defer output.Close()
 
@@ -96,7 +97,7 @@ func makeInput() string {
   name := "824-mrinput.txt"
   file, err := os.Create(name)
   if err != nil {
-    log.Fatal("mkInput: ", err);
+    log.Fatal("mkInput: ", err)
   }
   w := bufio.NewWriter(file)
   for i := 0; i < nNumber; i++ {
@@ -136,11 +137,11 @@ func TestBasic(t *testing.T) {
   fmt.Printf("Test: Basic mapreduce ...\n")
   mr := setup()
   for i := 0; i < 2; i++ {
-    go RunWorker(mr.MasterAddress, port("worker" + strconv.Itoa(i)),
-                 MapFunc, ReduceFunc, -1)
+    go RunWorker(mr.MasterAddress, port("worker"+strconv.Itoa(i)),
+      MapFunc, ReduceFunc, -1)
   }
   // Wait until MR is done
-  <- mr.DoneChannel
+  <-mr.DoneChannel
   check(t, mr.file)
   checkWorker(t, mr.stats)
   cleanup(mr)
@@ -151,12 +152,12 @@ func TestOneFailure(t *testing.T) {
   fmt.Printf("Test: One Failure mapreduce ...\n")
   mr := setup()
   // Start 2 workers that fail after 10 jobs
-  go RunWorker(mr.MasterAddress, port("worker" + strconv.Itoa(0)),
-               MapFunc, ReduceFunc, 10)
-  go RunWorker(mr.MasterAddress, port("worker" + strconv.Itoa(1)),
-               MapFunc, ReduceFunc, -1)
+  go RunWorker(mr.MasterAddress, port("worker"+strconv.Itoa(0)),
+    MapFunc, ReduceFunc, 10)
+  go RunWorker(mr.MasterAddress, port("worker"+strconv.Itoa(1)),
+    MapFunc, ReduceFunc, -1)
   // Wait until MR is done
-  <- mr.DoneChannel
+  <-mr.DoneChannel
   check(t, mr.file)
   checkWorker(t, mr.stats)
   cleanup(mr)
@@ -170,7 +171,7 @@ func TestManyFailures(t *testing.T) {
   done := false
   for !done {
     select {
-    case done = <- mr.DoneChannel:
+    case done = <-mr.DoneChannel:
       check(t, mr.file)
       cleanup(mr)
       break
@@ -188,4 +189,3 @@ func TestManyFailures(t *testing.T) {
 
   fmt.Printf("  ... Many Failures Passed\n")
 }
-
