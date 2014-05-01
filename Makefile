@@ -1,3 +1,6 @@
+GOPATH := ${PWD}
+export GOPATH=${PWD}
+
 define USAGE
 Usage instructions:
     make fmt                  runs gofmt on the source code
