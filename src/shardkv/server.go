@@ -101,6 +101,7 @@ type Op struct {
   Operation Operation
   Args      interface{}
   ReqId     string
+  Timestamp time.Time
   ConfigNum int
 }
 
@@ -139,7 +140,13 @@ func (kv *ShardKV) Get(args *GetArgs, reply *GetReply) error {
 
   kv.log("Get receive, key=%s, reqId=%s", key, reqId)
 
-  op := Op{Operation: Get, Args: *args, ReqId: reqId, ConfigNum: kv.config.Num}
+  op := Op{
+    Operation: Get,
+    Args:      *args,
+    ReqId:     reqId,
+    Timestamp: time.Now(),
+    ConfigNum: kv.config.Num,
+  }
 
   val, err := kv.resolveOp(op)
   reply.Value = val
@@ -160,7 +167,13 @@ func (kv *ShardKV) Put(args *PutArgs, reply *PutReply) error {
 
   kv.log("Put receive, key=%s, val=%s, reqId=%s", key, val, reqId)
 
-  op := Op{Operation: Put, Args: *args, ReqId: reqId, ConfigNum: kv.config.Num}
+  op := Op{
+    Operation: Put,
+    Args:      *args,
+    ReqId:     reqId,
+    Timestamp: time.Now(),
+    ConfigNum: kv.config.Num,
+  }
 
   prev, err := kv.resolveOp(op)
   reply.PreviousValue = prev
@@ -313,7 +326,10 @@ func (kv *ShardKV) applyReconfig(fromConfigNum int, toConfigNum int) (string, Er
       fetched := false
       for !fetched && kv.dead == false {
         for _, server := range old.Groups[oldGid] {
-          args := &TransferArgs{ConfigNum: old.Num, Shard: shard}
+          args := &TransferArgs{
+            ConfigNum: old.Num,
+            Shard:     shard,
+          }
           var reply TransferReply
           ok := call(server, "ShardKV.Transfer", args, &reply)
           // kv.log("transfer rpc ok=%s, server=%s", ok, server)
@@ -445,8 +461,15 @@ func (kv *ShardKV) prepareReconfig(oldConfig shardmaster.Config, newConfig shard
     return
   }
 
-  args := ReconfigArgs{FromConfigNum: oldConfig.Num, ToConfigNum: newConfig.Num}
-  op := Op{Operation: Reconfig, Args: args, ReqId: reqId, ConfigNum: oldConfig.Num}
+  op := Op{
+    Operation: Reconfig,
+    Args: ReconfigArgs{
+      FromConfigNum: oldConfig.Num,
+      ToConfigNum:   newConfig.Num,
+    },
+    ReqId:     reqId,
+    ConfigNum: oldConfig.Num,
+  }
 
   kv.resolveOp(op)
 
