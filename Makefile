@@ -14,4 +14,7 @@ help:
 fmt:
 	@gofmt -tabs=false -tabwidth=2 -w .
 
+test:
+	@go test paxos shardmaster shardkv
+
 .PHONY: help fmt
