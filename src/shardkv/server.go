@@ -40,10 +40,19 @@ func CorrectGroup(key string, gid int64, config shardmaster.Config) bool {
   return config.Shards[shard] == gid
 }
 
-func CopyTable(src map[string]string) map[string]string {
-  dst := make(map[string]string)
+func CopyEntry(src *Entry) *Entry {
+  return &Entry{
+    Value:       src.Value,
+    Timestamp:   src.Timestamp,
+    Expiration:  src.Expiration,
+    Subscribers: src.Subscribers,
+  }
+}
+
+func CopyTable(src map[string]*Entry) map[string]*Entry {
+  dst := make(map[string]*Entry)
   for k, v := range src {
-    dst[k] = v
+    dst[k] = CopyEntry(v)
   }
   return dst
 }
@@ -56,9 +65,9 @@ func CopyReqs(src map[string]*Result) map[string]*Result {
   return dst
 }
 
-func FilterTable(src map[string]string, shard int) map[string]string {
+func FilterTable(src map[string]*Entry, shard int) map[string]*Entry {
   // Filter k-v table by shard
-  result := make(map[string]string)
+  result := make(map[string]*Entry)
   for k, v := range src {
     if key2shard(k) == shard {
       result[k] = v
@@ -113,8 +122,8 @@ type ShardKV struct {
   config   shardmaster.Config
   transfer sync.Mutex
 
-  table          map[string]string         // key -> value
-  tableCache     map[int]map[string]string // confignum -> key -> value
+  table          map[string]*Entry         // key -> value
+  tableCache     map[int]map[string]*Entry // confignum -> key -> value
   reqs           map[string]*Result
   reqsCache      map[int]map[string]*Result
   lastAppliedSeq int
@@ -247,13 +256,13 @@ func (kv *ShardKV) applyGet(key string) (string, Err) {
     return "", ErrWrongGroup
   }
 
-  val, ok := kv.table[key]
+  entry, ok := kv.table[key]
 
   if !ok {
     return "", ErrNoKey
   }
 
-  return val, OK
+  return entry.Value, OK
 }
 
 func (kv *ShardKV) applyPut(key string, val string, dohash bool) (string, Err) {
@@ -261,9 +270,12 @@ func (kv *ShardKV) applyPut(key string, val string, dohash bool) (string, Err) {
     return "", ErrWrongGroup
   }
 
-  oldval, ok := kv.table[key]
-  if !ok {
-    oldval = ""
+  oldval := ""
+  entry, ok := kv.table[key]
+  if ok {
+    oldval = entry.Value
+  } else {
+    entry = &Entry{}
   }
 
   newval := val
@@ -271,7 +283,9 @@ func (kv *ShardKV) applyPut(key string, val string, dohash bool) (string, Err) {
     newval = strconv.Itoa(int(hash(oldval + newval)))
   }
 
-  kv.table[key] = newval
+  entry.Value = newval
+
+  kv.table[key] = entry
 
   return oldval, OK
 }
@@ -319,7 +333,7 @@ func (kv *ShardKV) applyReconfig(fromConfigNum int, toConfigNum int) (string, Er
   return "", OK
 }
 
-func (kv *ShardKV) mergeTable(incoming map[string]string) {
+func (kv *ShardKV) mergeTable(incoming map[string]*Entry) {
   for k, v := range incoming {
     kv.table[k] = v
   }
@@ -500,8 +514,8 @@ func StartServer(gid int64, shardmasters []string,
   kv.sm = shardmaster.MakeClerk(shardmasters)
   kv.config = kv.sm.Query(0)
 
-  kv.table = make(map[string]string)
-  kv.tableCache = make(map[int]map[string]string)
+  kv.table = make(map[string]*Entry)
+  kv.tableCache = make(map[int]map[string]*Entry)
   kv.reqs = make(map[string]*Result)
   kv.reqsCache = make(map[int]map[string]*Result)
   kv.lastAppliedSeq = -1

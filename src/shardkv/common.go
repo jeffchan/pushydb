@@ -1,6 +1,7 @@
 package shardkv
 
 import "hash/fnv"
+import "time"
 
 //
 // Sharded key/value server.
@@ -22,6 +23,13 @@ const (
 )
 
 type Err string
+
+type Entry struct {
+  Value       string
+  Timestamp   time.Time
+  Expiration  time.Duration
+  Subscribers []string
+}
 
 type PutArgs struct {
   Key    string
@@ -57,7 +65,7 @@ type TransferArgs struct {
 
 type TransferReply struct {
   Err   Err
-  Table map[string]string
+  Table map[string]*Entry
   Reqs  map[string]*Result
 }
 
