@@ -19,6 +19,7 @@ const (
   ServerLog           = false
   InitTimeout         = 10 * time.Millisecond
   ReconfigReqIdPrefix = "reconfig:gid="
+  ReconfigReqId       = ReconfigReqIdPrefix + "%d:%d->%d"
 )
 
 func ParseReqId(reqId string) (string, uint64) {
@@ -438,9 +439,7 @@ func (kv *ShardKV) prepareReconfig(oldConfig shardmaster.Config, newConfig shard
     return
   }
 
-  reqId := ReconfigReqIdPrefix
-  reqId += strconv.FormatInt(kv.gid, 10) + ":"
-  reqId += strconv.Itoa(oldConfig.Num) + "->" + strconv.Itoa(newConfig.Num)
+  reqId := fmt.Sprintf(ReconfigReqId, kv.gid, oldConfig.Num, newConfig.Num)
   _, exists := kv.reqs[reqId]
   if exists {
     return
