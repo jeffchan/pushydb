@@ -41,14 +41,6 @@ func CorrectGroup(key string, gid int64, config shardmaster.Config) bool {
   return config.Shards[shard] == gid
 }
 
-func CopyEntry(src *Entry) *Entry {
-  return &Entry{
-    Value:       src.Value,
-    Expiration:  src.Expiration,
-    Subscribers: src.Subscribers,
-  }
-}
-
 func CopyTable(src map[string]*Entry) map[string]*Entry {
   dst := make(map[string]*Entry)
   for k, v := range src {
@@ -85,29 +77,6 @@ func FilterReqs(src map[string]*Result) map[string]*Result {
     }
   }
   return result
-}
-
-const (
-  Put      = "Put"
-  Get      = "Get"
-  Reconfig = "Reconfig"
-  Noop     = "Noop"
-)
-
-type Operation string
-
-type Op struct {
-  Operation Operation
-  Args      interface{}
-  ReqId     string
-  Timestamp time.Time
-  ConfigNum int
-}
-
-type Result struct {
-  ReqId string
-  Val   string
-  Err   Err
 }
 
 type ShardKV struct {
@@ -179,6 +148,33 @@ func (kv *ShardKV) Put(args *PutArgs, reply *PutReply) error {
   reply.Err = err
 
   kv.log("Put return, key=%s, val=%s, prev=%s, reqId=%s, err=%s", key, val, prev, reqId, err)
+
+  return nil
+}
+
+func (kv *ShardKV) Subscribe(args *SubscribeArgs, reply *SubscribeReply) error {
+  kv.transfer.Lock()
+  defer kv.transfer.Unlock()
+
+  key := args.Key
+  addr := args.Address
+  unsub := args.Unsubscribe
+  reqId := args.ReqId
+
+  kv.log("Subscribe receive, key=%s, addr=%s, unsub=%s, reqId=%s", key, addr, unsub, reqId)
+
+  op := Op{
+    Operation: Subscribe,
+    Args:      *args,
+    ReqId:     reqId,
+    Timestamp: time.Now(),
+    ConfigNum: kv.config.Num,
+  }
+
+  _, err := kv.resolveOp(op)
+  reply.Err = err
+
+  kv.log("Subscribe return, key=%s, addr=%s, unsub=%s, reqId=%s, err=%s", key, addr, unsub, reqId, err)
 
   return nil
 }
@@ -281,6 +277,9 @@ func (kv *ShardKV) applyGet(args GetArgs, timestamp time.Time) (string, Err) {
     return "", OK
   }
 
+  // TODO: we return OK when there should be ErrNoKey,
+  // because we create an entry when we add a subscriber
+
   return entry.Value, OK
 }
 
@@ -299,7 +298,7 @@ func (kv *ShardKV) applyPut(args PutArgs, timestamp time.Time) (string, Err) {
   if ok {
     oldval = entry.Value
   } else {
-    entry = &Entry{}
+    entry = NewEntry()
   }
 
   newval := val
@@ -318,6 +317,26 @@ func (kv *ShardKV) applyPut(args PutArgs, timestamp time.Time) (string, Err) {
   kv.table[key] = entry
 
   return oldval, OK
+}
+
+func (kv *ShardKV) applySubscribe(args SubscribeArgs) (string, Err) {
+  key := args.Key
+  addr := args.Address
+  unsub := args.Unsubscribe
+
+  if !CorrectGroup(key, kv.gid, kv.config) {
+    return "", ErrWrongGroup
+  }
+
+  entry, ok := kv.table[key]
+  if !ok {
+    entry = NewEntry()
+  }
+
+  entry.Subscribers[addr] = !unsub
+  kv.table[key] = entry
+
+  return "", OK
 }
 
 func (kv *ShardKV) applyReconfig(args ReconfigArgs) (string, Err) {
@@ -401,6 +420,9 @@ func (kv *ShardKV) applyOp(op *Op) (string, Err) {
   case Put:
     args := op.Args.(PutArgs)
     return kv.applyPut(args, op.Timestamp)
+  case Subscribe:
+    args := op.Args.(SubscribeArgs)
+    return kv.applySubscribe(args)
   case Reconfig:
     args := op.Args.(ReconfigArgs)
     return kv.applyReconfig(args)

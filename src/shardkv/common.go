@@ -27,7 +27,56 @@ type Err string
 type Entry struct {
   Value       string
   Expiration  time.Time
-  Subscribers []string
+  Subscribers map[string]bool
+}
+
+func NewEntry() *Entry {
+  return &Entry{
+    Subscribers: make(map[string]bool),
+  }
+}
+
+func CopyEntry(src *Entry) *Entry {
+  return &Entry{
+    Value:       src.Value,
+    Expiration:  src.Expiration,
+    Subscribers: src.Subscribers,
+  }
+}
+
+const (
+  Put       = "Put"
+  Get       = "Get"
+  Reconfig  = "Reconfig"
+  Subscribe = "Subscribe"
+  Noop      = "Noop"
+)
+
+type Operation string
+
+type Op struct {
+  Operation Operation
+  Args      interface{}
+  ReqId     string
+  Timestamp time.Time
+  ConfigNum int
+}
+
+type Result struct {
+  ReqId string
+  Val   string
+  Err   Err
+}
+
+type SubscribeArgs struct {
+  Key         string
+  Address     string
+  Unsubscribe bool // True to unsubscribe
+  ReqId       string
+}
+
+type SubscribeReply struct {
+  Err Err
 }
 
 type PutArgs struct {
