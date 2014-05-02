@@ -277,6 +277,10 @@ func (kv *ShardKV) applyGet(args GetArgs, timestamp time.Time) (string, Err) {
     return "", ErrNoKey
   }
 
+  if !entry.Expiration.IsZero() && timestamp.After(entry.Expiration) {
+    return "", OK
+  }
+
   return entry.Value, OK
 }
 
@@ -348,7 +352,6 @@ func (kv *ShardKV) applyReconfig(args ReconfigArgs) (string, Err) {
           ok := call(server, "ShardKV.Transfer", args, &reply)
           // kv.log("transfer rpc ok=%s, server=%s", ok, server)
           if ok && reply.Err == OK {
-            kv.log("Got table = %s, reqs = ", reply.Table, reply.Reqs)
             kv.mergeTable(reply.Table)
             kv.mergeReqs(reply.Reqs)
             fetched = true

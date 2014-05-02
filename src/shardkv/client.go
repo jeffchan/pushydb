@@ -141,7 +141,12 @@ func (ck *Clerk) Get(key string) string {
   return ""
 }
 
-func (ck *Clerk) PutExt(key string, value string, dohash bool) string {
+func (ck *Clerk) PutExt(
+  key string,
+  value string,
+  dohash bool,
+  ttl time.Duration,
+) string {
   ck.mu.Lock()
   defer ck.mu.Unlock()
 
@@ -162,6 +167,7 @@ func (ck *Clerk) PutExt(key string, value string, dohash bool) string {
         args.Key = key
         args.Value = value
         args.DoHash = dohash
+        args.TTL = ttl
         args.ReqId = reqId
         var reply PutReply
         ok := call(srv, "ShardKV.Put", args, &reply)
@@ -182,9 +188,9 @@ func (ck *Clerk) PutExt(key string, value string, dohash bool) string {
 }
 
 func (ck *Clerk) Put(key string, value string) {
-  ck.PutExt(key, value, false)
+  ck.PutExt(key, value, false, 0)
 }
 func (ck *Clerk) PutHash(key string, value string) string {
-  v := ck.PutExt(key, value, true)
+  v := ck.PutExt(key, value, true, 0)
   return v
 }
