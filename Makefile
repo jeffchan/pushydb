@@ -20,4 +20,4 @@ fmt:
 test: fmt
 	@go test paxos shardmaster shardkv
 
-.PHONY: help fmt
+.PHONY: help fmt test
