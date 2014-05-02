@@ -26,8 +26,7 @@ type Err string
 
 type Entry struct {
   Value       string
-  Timestamp   time.Time
-  TTL         time.Duration
+  Expiration  time.Time
   Subscribers []string
 }
 
@@ -35,6 +34,7 @@ type PutArgs struct {
   Key    string
   Value  string
   DoHash bool // For PutHash
+  TTL    time.Duration
   ReqId  string
 }
 

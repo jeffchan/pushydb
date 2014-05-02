@@ -44,8 +44,7 @@ func CorrectGroup(key string, gid int64, config shardmaster.Config) bool {
 func CopyEntry(src *Entry) *Entry {
   return &Entry{
     Value:       src.Value,
-    Timestamp:   src.Timestamp,
-    TTL:         src.TTL,
+    Expiration:  src.Expiration,
     Subscribers: src.Subscribers,
   }
 }
@@ -265,7 +264,9 @@ func (kv *ShardKV) resolveOp(op Op) (string, Err) {
   return result.Val, result.Err
 }
 
-func (kv *ShardKV) applyGet(key string) (string, Err) {
+func (kv *ShardKV) applyGet(args GetArgs, timestamp time.Time) (string, Err) {
+  key := args.Key
+
   if !CorrectGroup(key, kv.gid, kv.config) {
     return "", ErrWrongGroup
   }
@@ -279,7 +280,12 @@ func (kv *ShardKV) applyGet(key string) (string, Err) {
   return entry.Value, OK
 }
 
-func (kv *ShardKV) applyPut(key string, val string, dohash bool) (string, Err) {
+func (kv *ShardKV) applyPut(args PutArgs, timestamp time.Time) (string, Err) {
+  key := args.Key
+  val := args.Value
+  dohash := args.DoHash
+  ttl := args.TTL
+
   if !CorrectGroup(key, kv.gid, kv.config) {
     return "", ErrWrongGroup
   }
@@ -299,12 +305,20 @@ func (kv *ShardKV) applyPut(key string, val string, dohash bool) (string, Err) {
 
   entry.Value = newval
 
+  if ttl != 0 {
+    entry.Expiration = timestamp.Add(ttl)
+  } else {
+    entry.Expiration = time.Time{}
+  }
+
   kv.table[key] = entry
 
   return oldval, OK
 }
 
-func (kv *ShardKV) applyReconfig(fromConfigNum int, toConfigNum int) (string, Err) {
+func (kv *ShardKV) applyReconfig(args ReconfigArgs) (string, Err) {
+  fromConfigNum := args.FromConfigNum
+  toConfigNum := args.ToConfigNum
 
   old := kv.sm.Query(fromConfigNum)
   next := kv.sm.Query(toConfigNum)
@@ -380,13 +394,13 @@ func (kv *ShardKV) applyOp(op *Op) (string, Err) {
   switch op.Operation {
   case Get:
     args := op.Args.(GetArgs)
-    return kv.applyGet(args.Key)
+    return kv.applyGet(args, op.Timestamp)
   case Put:
     args := op.Args.(PutArgs)
-    return kv.applyPut(args.Key, args.Value, args.DoHash)
+    return kv.applyPut(args, op.Timestamp)
   case Reconfig:
     args := op.Args.(ReconfigArgs)
-    return kv.applyReconfig(args.FromConfigNum, args.ToConfigNum)
+    return kv.applyReconfig(args)
   }
 
   // Should not reach this point
