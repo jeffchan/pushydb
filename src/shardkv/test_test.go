@@ -141,6 +141,33 @@ func TestBasic(t *testing.T) {
   fmt.Printf("  ... Passed\n")
 }
 
+func TestBasicExpiry(t *testing.T) {
+  smh, gids, ha, _, clean := setup("basicexpiry", false)
+  defer clean()
+
+  fmt.Printf("Test: Basic Expiry ...\n")
+  mck := shardmaster.MakeClerk(smh)
+  mck.Join(gids[0], ha[0])
+
+  ck := MakeClerk(smh)
+
+  ttl := 2 * time.Second
+  ck.PutExt("a", "x", false, ttl)
+
+  v := ck.Get("a")
+  if v != "x" {
+    t.Fatalf("Put got wrong value")
+  }
+  time.Sleep(ttl)
+
+  ov := ck.Get("a")
+  if ov != "" {
+    t.Fatalf("Put got value, should've expired")
+  }
+
+  fmt.Printf("  ... Passed\n")
+}
+
 func TestMove(t *testing.T) {
   smh, gids, ha, _, clean := setup("move", false)
   defer clean()
