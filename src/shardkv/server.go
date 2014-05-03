@@ -365,7 +365,7 @@ func (kv *ShardKV) applyReconfig(args ReconfigArgs) (string, Err) {
     if oldGid != newGid && newGid == kv.gid {
       // request shards from replicas in another group
       fetched := false
-      for !fetched && kv.dead == false {
+      for !fetched && !kv.dead {
         for _, server := range old.Groups[oldGid] {
           args := &TransferArgs{
             ConfigNum: old.Num,
@@ -440,7 +440,7 @@ func (kv *ShardKV) logSync() {
 
   timeout := InitTimeout
 
-  for kv.dead == false {
+  for !kv.dead {
 
     seq := kv.lastAppliedSeq + 1
     decided, result := kv.px.Status(seq)
@@ -630,7 +630,7 @@ func StartServer(gid int64, shardmasters []string,
   }()
 
   go func() {
-    for kv.dead == false {
+    for !kv.dead {
       kv.tick()
       time.Sleep(250 * time.Millisecond)
     }
