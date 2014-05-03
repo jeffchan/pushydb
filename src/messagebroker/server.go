@@ -282,7 +282,3 @@ func StartServer(servers []string, me int) *MBServer {
 
   return mb
 }
-
-/*
-  gob.Register(NotifyArgs{})
-*/
