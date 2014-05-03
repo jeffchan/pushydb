@@ -40,8 +40,16 @@ func CopyEntry(src *Entry) *Entry {
   return &Entry{
     Value:       src.Value,
     Expiration:  src.Expiration,
-    Subscribers: src.Subscribers,
+    Subscribers: CopySubscribers(src.Subscribers),
   }
+}
+
+func CopySubscribers(src map[string]bool) map[string]bool {
+  dst := make(map[string]bool)
+  for k, v := range src {
+    dst[k] = v
+  }
+  return dst
 }
 
 const (
