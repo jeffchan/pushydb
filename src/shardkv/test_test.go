@@ -156,11 +156,16 @@ func TestBasicExpiry(t *testing.T) {
 
   v := ck.Get("a")
   if v != "x" {
-    t.Fatalf("Put got wrong value")
+    t.Fatalf("Get got wrong value")
   }
   time.Sleep(ttl)
 
   ov := ck.Get("a")
+  if ov != "" {
+    t.Fatalf("Get got value, should've expired")
+  }
+
+  ov = ck.PutHash("a", "b")
   if ov != "" {
     t.Fatalf("Put got value, should've expired")
   }
