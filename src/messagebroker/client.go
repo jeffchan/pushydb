@@ -6,7 +6,6 @@ import "os"
 import "syscall"
 import "sync"
 import "fmt"
-import "strconv"
 import "math/rand"
 import crand "crypto/rand"
 import "math/big"
@@ -24,8 +23,6 @@ type Clerk struct {
   dead       bool // for testing
   unreliable bool // for testing
 
-  id      string
-  counter uint64
   dups    map[string]bool
   publish chan *PublishArgs
   pending []*PublishArgs
@@ -33,8 +30,6 @@ type Clerk struct {
 
 func MakeClerk(me string, publish chan *PublishArgs) *Clerk {
   ck := new(Clerk)
-  ck.id = strconv.Itoa(int(nrand()))
-  ck.counter = 0
   ck.me = me
   ck.dups = make(map[string]bool)
   ck.publish = publish
@@ -83,16 +78,7 @@ func MakeClerk(me string, publish chan *PublishArgs) *Clerk {
     }
   }()
 
-  go func() {
-    for !ck.dead {
-      if (len(ck.pending) > 0 ) {
-        notification := ck.pending[0]
-        ck.pending = ck.pending[1:]
-        ck.publish <- notification
-      }
-      time.Sleep(50*time.Millisecond)
-    }
-  }()
+  go ck.process()
 
   return ck
 }
@@ -102,39 +88,6 @@ func nrand() int64 {
   bigx, _ := crand.Int(crand.Reader, max)
   x := bigx.Int64()
   return x
-}
-
-//
-// call() sends an RPC to the rpcname handler on server srv
-// with arguments args, waits for the reply, and leaves the
-// reply in reply. the reply argument should be a pointer
-// to a reply structure.
-//
-// the return value is true if the server responded, and false
-// if call() was not able to contact the server. in particular,
-// the reply's contents are only valid if call() returned true.
-//
-// you should assume that call() will time out and return an
-// error after a while if it doesn't get a reply from the server.
-//
-// please use call() to send all RPCs, in client.go and server.go.
-// please don't change this function.
-//
-func call(srv string, rpcname string,
-  args interface{}, reply interface{}) bool {
-  c, errx := rpc.Dial("unix", srv)
-  if errx != nil {
-    return false
-  }
-  defer c.Close()
-
-  err := c.Call(rpcname, args, reply)
-  if err == nil {
-    return true
-  }
-
-  fmt.Println(err)
-  return false
 }
 
 func (ck *Clerk) Publish(args *PublishArgs, reply *PublishReply) error {
@@ -151,21 +104,26 @@ func (ck *Clerk) Publish(args *PublishArgs, reply *PublishReply) error {
   return nil
 }
 
+func (ck *Clerk) process() {
+  for !ck.dead {
+    if (len(ck.pending) > 0 ) {
+      notification := ck.pending[0]
+      ck.pending = ck.pending[1:]
+      ck.publish <- notification
+    }
+    time.Sleep(50*time.Millisecond)
+  }
+}
+
 func (ck *Clerk) kill() {
   ck.dead = true
   ck.l.Close()
 }
 
-func (ck *Clerk) reqId() string {
-  ck.counter++
-  return ck.id + ":" + strconv.Itoa(int(ck.counter))
-}
-
 func (ck *Clerk) log(format string, a ...interface{}) (n int, err error) {
   if ClientLog {
-    addr := "MBClerk#" + ck.id + "|"
-    reqId := "ReqId#" + strconv.FormatUint(ck.counter, 10)
-    n, err = fmt.Printf(addr+reqId+" ** "+format+"\n", a...)
+    addr := "MBClerk#" + ck.me
+    n, err = fmt.Printf(addr+" ** "+format+"\n", a...)
   }
   return
 }
