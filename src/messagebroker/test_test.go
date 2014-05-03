@@ -7,8 +7,6 @@ import "fmt"
 import "time"
 import "runtime"
 
-// import "reflect"
-
 var _ = time.Millisecond
 
 func port(tag string, host int) string {
