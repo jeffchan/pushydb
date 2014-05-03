@@ -227,6 +227,7 @@ func (mb *MBServer) logSync() {
 
 func StartServer(servers []string, me int) *MBServer {
   gob.Register(Op{})
+  gob.Register(PublishArgs{})
   gob.Register(NotifyArgs{})
 
   mb := new(MBServer)
