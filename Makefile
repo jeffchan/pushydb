@@ -18,6 +18,6 @@ fmt:
 	@gofmt -tabs=false -tabwidth=2 -w .
 
 test: fmt
-	@go test paxos shardmaster shardkv
+	@go test shardkv
 
 .PHONY: help fmt test

@@ -17,6 +17,7 @@ type Clerk struct {
   mu      sync.Mutex // one RPC at a time
   sm      *shardmaster.Clerk
   config  shardmaster.Config
+  mb      *messagebroker.Clerk
   id      string
   counter uint64
 }
