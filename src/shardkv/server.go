@@ -295,7 +295,9 @@ func (kv *ShardKV) applyPut(args PutArgs, timestamp time.Time) (string, Err) {
 
   oldval := ""
   entry, ok := kv.table[key]
-  if ok {
+  if ok && !entry.Expiration.IsZero() && timestamp.After(entry.Expiration) {
+    oldval = ""
+  } else if ok {
     oldval = entry.Value
   } else {
     entry = NewEntry()
@@ -487,6 +489,7 @@ func (kv *ShardKV) logSync() {
       }
     }
   }
+
 }
 
 func (kv *ShardKV) prepareReconfig(oldConfig shardmaster.Config, newConfig shardmaster.Config) {
