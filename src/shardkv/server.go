@@ -43,8 +43,8 @@ func CorrectGroup(key string, gid int64, config shardmaster.Config) bool {
 
 func CopyTable(src map[string]*Entry) map[string]*Entry {
   dst := make(map[string]*Entry)
-  for k, v := range src {
-    dst[k] = CopyEntry(v)
+  for k, entry := range src {
+    dst[k] = entry.Clone()
   }
   return dst
 }
@@ -273,7 +273,7 @@ func (kv *ShardKV) applyGet(args GetArgs, timestamp time.Time) (string, Err) {
     return "", ErrNoKey
   }
 
-  if !entry.Expiration.IsZero() && timestamp.After(entry.Expiration) {
+  if entry.IsExpired(timestamp) {
     return "", OK
   }
 
@@ -295,10 +295,12 @@ func (kv *ShardKV) applyPut(args PutArgs, timestamp time.Time) (string, Err) {
 
   oldval := ""
   entry, ok := kv.table[key]
-  if ok && !entry.Expiration.IsZero() && timestamp.After(entry.Expiration) {
-    oldval = ""
-  } else if ok {
-    oldval = entry.Value
+  if ok {
+    if entry.IsExpired(timestamp) {
+      oldval = ""
+    } else {
+      oldval = entry.Value
+    }
   } else {
     entry = NewEntry()
   }

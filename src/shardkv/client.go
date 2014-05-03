@@ -8,6 +8,7 @@ import "fmt"
 import "strconv"
 import "crypto/rand"
 import "math/big"
+import "messagebroker"
 
 const (
   ClientLog = false

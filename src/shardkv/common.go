@@ -36,12 +36,16 @@ func NewEntry() *Entry {
   }
 }
 
-func CopyEntry(src *Entry) *Entry {
+func (entry *Entry) Clone() *Entry {
   return &Entry{
-    Value:       src.Value,
-    Expiration:  src.Expiration,
-    Subscribers: CopySubscribers(src.Subscribers),
+    Value:       entry.Value,
+    Expiration:  entry.Expiration,
+    Subscribers: CopySubscribers(entry.Subscribers),
   }
+}
+
+func (entry *Entry) IsExpired(refTime time.Time) bool {
+  return !entry.Expiration.IsZero() && refTime.After(entry.Expiration)
 }
 
 func CopySubscribers(src map[string]bool) map[string]bool {
