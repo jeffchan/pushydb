@@ -489,7 +489,6 @@ func (kv *ShardKV) logSync() {
       }
     }
   }
-
 }
 
 func (kv *ShardKV) prepareReconfig(oldConfig shardmaster.Config, newConfig shardmaster.Config) {

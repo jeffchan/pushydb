@@ -17,18 +17,18 @@ const (
 )
 
 type Clerk struct {
-  mu      sync.Mutex // one RPC at a time
+  mu         sync.Mutex // one RPC at a time
   l          net.Listener
-  me      string
+  me         string
   dead       bool // for testing
   unreliable bool // for testing
 
   dups    map[string]bool
-  publish chan *PublishArgs
+  publish chan PublishArgs
   pending []*PublishArgs
 }
 
-func MakeClerk(me string, publish chan *PublishArgs) *Clerk {
+func MakeClerk(me string, publish chan PublishArgs) *Clerk {
   ck := new(Clerk)
   ck.me = me
   ck.dups = make(map[string]bool)
@@ -73,7 +73,7 @@ func MakeClerk(me string, publish chan *PublishArgs) *Clerk {
       }
       if err != nil && ck.dead == false {
         fmt.Printf("MBClerk(%v) accept: %v\n", ck.me, err.Error())
-        ck.kill()
+        ck.Kill()
       }
     }
   }()
@@ -93,29 +93,27 @@ func nrand() int64 {
 func (ck *Clerk) Publish(args *PublishArgs, reply *PublishReply) error {
   reqId := args.ReqId
   _, ok := ck.dups[reqId]
-  if (ok) {
-    return nil
-  } else {
+  if !ok {
     ck.dups[reqId] = true
+    ck.pending = append(ck.pending, args)
   }
 
   reply.Err = OK
-  ck.pending = append(ck.pending, args)
   return nil
 }
 
 func (ck *Clerk) process() {
   for !ck.dead {
-    if (len(ck.pending) > 0 ) {
+    if len(ck.pending) > 0 {
       notification := ck.pending[0]
       ck.pending = ck.pending[1:]
-      ck.publish <- notification
+      ck.publish <- *notification
     }
-    time.Sleep(50*time.Millisecond)
+    time.Sleep(50 * time.Millisecond)
   }
 }
 
-func (ck *Clerk) kill() {
+func (ck *Clerk) Kill() {
   ck.dead = true
   ck.l.Close()
 }

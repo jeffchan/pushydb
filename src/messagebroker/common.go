@@ -13,13 +13,17 @@ import "fmt"
 //
 
 const (
-  OK = "OK"
+  OK                = "OK"
+  ErrAlreadyApplied = "ErrAlreadyApplied"
+  ErrInvalid        = "ErrInvalid"
+  ErrNoOp           = "ErrNoOp"
 )
 
 type Err string
 
 const (
   Notify = "Notify"
+  Noop   = "Noop"
 )
 
 type Operation string
@@ -42,7 +46,7 @@ type PublishReply struct {
 
 type NotifyArgs struct {
   PublishArgs PublishArgs
-  Subscriber  map[string]bool
+  Subscribers map[string]bool
 }
 
 type NotifyReply struct {
@@ -81,4 +85,3 @@ func call(srv string, rpcname string,
   fmt.Println(err)
   return false
 }
-
