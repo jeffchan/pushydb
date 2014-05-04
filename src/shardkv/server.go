@@ -16,6 +16,10 @@ import "strconv"
 import "strings"
 import "messagebroker"
 
+import leveldb "github.com/syndtr/goleveldb/leveldb"
+
+var _ = leveldb.OpenFile
+
 const (
   ServerLog           = false
   InitTimeout         = 10 * time.Millisecond
