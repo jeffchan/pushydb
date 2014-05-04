@@ -38,7 +38,7 @@ func RandMTime() time.Duration {
 
 func (mb *MBServer) log(format string, a ...interface{}) (n int, err error) {
   if ServerLog {
-    addr := "Srv#" + strconv.Itoa(mb.me) + "|"
+    addr := "MBServer#" + strconv.Itoa(mb.me) + "|"
     n, err = fmt.Printf(addr+" >> "+format+"\n", a...)
   }
   return
@@ -132,8 +132,8 @@ func (mb *MBServer) applyNotify(args NotifyArgs) Err {
     var reply PublishReply
 
     for !mb.dead {
-      call_ok := call(client, "Clerk.Publish", pubargs, &reply)
-      if call_ok && reply.Err == OK {
+      ok := call(client, "Clerk.Publish", pubargs, &reply)
+      if ok && reply.Err == OK {
         break
       }
       time.Sleep(ClientRetryInterval)
