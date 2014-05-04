@@ -31,7 +31,7 @@ func MakeClerk(shardmasters []string) *Clerk {
   ck.id = strconv.Itoa(int(nrand()))
   ck.counter = 0
 
-  ck.addr = "/var/tmp/824-"+ck.id
+  ck.addr = "/var/tmp/824-" + ck.id
   ck.Receive = make(chan messagebroker.PublishArgs)
   ck.mb = messagebroker.MakeClerk(ck.addr, ck.Receive)
   return ck
