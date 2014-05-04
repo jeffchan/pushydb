@@ -27,6 +27,10 @@ func NextValue(hprev string, val string) string {
   return strconv.Itoa(int(h))
 }
 
+func cleanupClerk(ck *Clerk) {
+  ck.Kill()
+}
+
 func mbcleanup(mba []*messagebroker.MBServer) {
   for i := 0; i < len(mba); i++ {
     if mba[i] != nil {
@@ -107,6 +111,7 @@ func TestBasic(t *testing.T) {
   mck.Join(gids[0], ha[0])
 
   ck := MakeClerk(smh)
+  defer cleanupClerk(ck)
 
   ck.Put("a", "x")
   v := ck.PutHash("a", "b")
@@ -168,6 +173,7 @@ func TestBasicExpiry(t *testing.T) {
   mck.Join(gids[0], ha[0])
 
   ck := MakeClerk(smh)
+  defer cleanupClerk(ck)
 
   ttl := 2 * time.Second
   ck.PutExt("a", "x", false, ttl)
@@ -191,6 +197,29 @@ func TestBasicExpiry(t *testing.T) {
   fmt.Printf("  ... Passed\n")
 }
 
+func TestSubscribe(t *testing.T) {
+  smh, gids, ha, _, clean := setup("subscribe", false)
+  defer clean()
+
+  fmt.Printf("Test: Subscribe ...\n")
+  mck := shardmaster.MakeClerk(smh)
+  mck.Join(gids[0], ha[0])
+
+  ck := MakeClerk(smh)
+  defer cleanupClerk(ck)
+
+  ck.Subscribe("a")
+
+  ck.Put("a", "x")
+
+  v := <-ck.Receive
+  if v.Value != "x" {
+    t.Fatalf("Receive got wrong value")
+  }
+
+  fmt.Printf("  ... Passed\n")
+}
+
 func TestMove(t *testing.T) {
   smh, gids, ha, _, clean := setup("move", false)
   defer clean()
@@ -201,6 +230,7 @@ func TestMove(t *testing.T) {
   mck.Join(gids[0], ha[0])
 
   ck := MakeClerk(smh)
+  defer cleanupClerk(ck)
 
   // insert one key per shard
   for i := 0; i < shardmaster.NShards; i++ {
@@ -228,6 +258,7 @@ func TestMove(t *testing.T) {
   for i := 0; i < shardmaster.NShards; i++ {
     go func(me int) {
       myck := MakeClerk(smh)
+      defer cleanupClerk(myck)
       v := myck.Get(string('0' + me))
       if v == string('0'+me) {
         mu.Lock()
@@ -259,6 +290,7 @@ func TestLimp(t *testing.T) {
   mck.Join(gids[0], ha[0])
 
   ck := MakeClerk(smh)
+  defer cleanupClerk(ck)
 
   ck.Put("a", "b")
   if ck.Get("a") != "b" {
@@ -330,6 +362,7 @@ func doConcurrent(t *testing.T, unreliable bool) {
       ok := true
       defer func() { ca[me] <- ok }()
       ck := MakeClerk(smh)
+      defer cleanupClerk(ck)
       mymck := shardmaster.MakeClerk(smh)
       key := strconv.Itoa(me)
       last := ""
