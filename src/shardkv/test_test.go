@@ -9,6 +9,7 @@ import "time"
 import "fmt"
 import "sync"
 import "math/rand"
+import "messagebroker"
 
 func port(tag string, host int) string {
   s := "/var/tmp/824-"
@@ -56,6 +57,15 @@ func setup(tag string, unreliable bool) ([]string, []int64, [][]string, [][]*Sha
     sma[i] = shardmaster.StartServer(smh, i)
   }
 
+  var mba []*messagebroker.MBServer = make([]*messagebroker.MBServer, nmasters)
+  var mbh []string = make([]string, nmasters)
+  for i := 0; i < nmasters; i++ {
+    mbh[i] = port(tag+"messagebroker", i)
+  }
+  for i := 0; i < nmasters; i++ {
+    mba[i] = messagebroker.StartServer(mbh, i)
+  }
+
   const ngroups = 3                 // replica groups
   const nreplicas = 3               // servers per group
   gids := make([]int64, ngroups)    // each group ID
@@ -70,7 +80,7 @@ func setup(tag string, unreliable bool) ([]string, []int64, [][]string, [][]*Sha
       ha[i][j] = port(tag+"s", (i*nreplicas)+j)
     }
     for j := 0; j < nreplicas; j++ {
-      sa[i][j] = StartServer(gids[i], smh, ha[i], j)
+      sa[i][j] = StartServer(gids[i], smh, ha[i], j, mbh[i])
       sa[i][j].unreliable = unreliable
     }
   }

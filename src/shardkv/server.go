@@ -19,6 +19,7 @@ import "messagebroker"
 const (
   ServerLog           = false
   InitTimeout         = 10 * time.Millisecond
+  NotifyRetryInterval = 100 * time.Millisecond
   ReconfigReqIdPrefix = "reconfig:gid="
   ReconfigReqId       = ReconfigReqIdPrefix + "%d:%d->%d"
 )
@@ -87,6 +88,7 @@ type ShardKV struct {
   dead       bool // for testing
   unreliable bool // for testing
   sm         *shardmaster.Clerk
+  mb         string
   px         *paxos.Paxos
 
   gid      int64 // my replica group ID
@@ -227,11 +229,12 @@ func (kv *ShardKV) notify(
   }
   var reply messagebroker.NotifyReply
 
-  ok := call("", "MBServer.Notify", args, &reply)
-  if ok {
-    return
-  } else {
-    // retry
+  for !kv.dead {
+    ok := call(kv.mb, "MBServer.Notify", args, &reply)
+    if ok && reply.Err == OK {
+      break
+    }
+    time.Sleep(NotifyRetryInterval)
   }
 }
 
@@ -549,7 +552,6 @@ func (kv *ShardKV) prepareReconfig(oldConfig shardmaster.Config, newConfig shard
   }
 
   kv.resolveOp(op)
-
 }
 
 //
@@ -599,8 +601,10 @@ func (kv *ShardKV) kill() {
 //   in this replica group.
 // Me is the index of this server in servers[].
 //
-func StartServer(gid int64, shardmasters []string,
-  servers []string, me int) *ShardKV {
+func StartServer(gid int64,
+  shardmasters []string,
+  servers []string, me int,
+  messagebroker string) *ShardKV {
   gob.Register(Op{})
   gob.Register(PutArgs{})
   gob.Register(GetArgs{})
@@ -611,6 +615,7 @@ func StartServer(gid int64, shardmasters []string,
   kv.me = me
   kv.gid = gid
   kv.sm = shardmaster.MakeClerk(shardmasters)
+  kv.mb = messagebroker
   kv.config = kv.sm.Query(0)
 
   kv.table = make(map[string]*Entry)
