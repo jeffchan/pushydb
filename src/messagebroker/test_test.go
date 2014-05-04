@@ -20,6 +20,10 @@ func port(tag string, host int) string {
   return s
 }
 
+func cleanupClerk(ck *Clerk) {
+  ck.Kill()
+}
+
 func cleanup(mbservers []*MBServer) {
   for i := 0; i < len(mbservers); i++ {
     mbservers[i].Kill()
@@ -54,7 +58,7 @@ func TestBasic(t *testing.T) {
   addr := port("basic-clerk", 0)
   publications := make(chan PublishArgs)
   clerk := MakeClerk(addr, publications)
-  defer func() { clerk.Kill() }()
+  defer cleanupClerk(clerk)
 
   pubArgs := PublishArgs{
     Key:   "a",
