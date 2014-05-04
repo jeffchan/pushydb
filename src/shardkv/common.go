@@ -5,7 +5,6 @@ import "time"
 import "net/rpc"
 import "shardmaster"
 import "fmt"
-import "strconv"
 
 //
 // Sharded key/value server.
