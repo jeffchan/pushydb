@@ -22,7 +22,12 @@ type Operation string
 type Op struct {
   Operation Operation
   Args      interface{}
-  ReqId     string
+  Seq       int
+}
+
+type Result struct {
+  Args interface{}
+  Err  Err
 }
 
 type PublishArgs struct {
