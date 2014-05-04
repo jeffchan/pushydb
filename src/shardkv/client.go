@@ -1,7 +1,6 @@
 package shardkv
 
 import "shardmaster"
-import "net/rpc"
 import "time"
 import "sync"
 import "fmt"
@@ -18,9 +17,11 @@ type Clerk struct {
   mu      sync.Mutex // one RPC at a time
   sm      *shardmaster.Clerk
   config  shardmaster.Config
-  mb      *messagebroker.Clerk
   id      string
   counter uint64
+
+  mb      *messagebroker.Clerk
+  Receive chan messagebroker.PublishArgs
 }
 
 func MakeClerk(shardmasters []string) *Clerk {
@@ -28,6 +29,10 @@ func MakeClerk(shardmasters []string) *Clerk {
   ck.sm = shardmaster.MakeClerk(shardmasters)
   ck.id = strconv.Itoa(int(nrand()))
   ck.counter = 0
+
+  ck.Receive = make(chan messagebroker.PublishArgs)
+  ck.mb = messagebroker.MakeClerk("/var/tmp/824-"+ck.id, ck.Receive)
+  // TODO: need to kill this clerk
   return ck
 }
 
@@ -36,53 +41,6 @@ func nrand() int64 {
   bigx, _ := rand.Int(rand.Reader, max)
   x := bigx.Int64()
   return x
-}
-
-//
-// call() sends an RPC to the rpcname handler on server srv
-// with arguments args, waits for the reply, and leaves the
-// reply in reply. the reply argument should be a pointer
-// to a reply structure.
-//
-// the return value is true if the server responded, and false
-// if call() was not able to contact the server. in particular,
-// the reply's contents are only valid if call() returned true.
-//
-// you should assume that call() will time out and return an
-// error after a while if it doesn't get a reply from the server.
-//
-// please use call() to send all RPCs, in client.go and server.go.
-// please don't change this function.
-//
-func call(srv string, rpcname string,
-  args interface{}, reply interface{}) bool {
-  c, errx := rpc.Dial("unix", srv)
-  if errx != nil {
-    return false
-  }
-  defer c.Close()
-
-  err := c.Call(rpcname, args, reply)
-  if err == nil {
-    return true
-  }
-
-  fmt.Println(err)
-  return false
-}
-
-//
-// which shard is a key in?
-// please use this function,
-// and please do not change it.
-//
-func key2shard(key string) int {
-  shard := 0
-  if len(key) > 0 {
-    shard = int(key[0])
-  }
-  shard %= shardmaster.NShards
-  return shard
 }
 
 func (ck *Clerk) reqId() string {

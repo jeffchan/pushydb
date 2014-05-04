@@ -27,6 +27,14 @@ func NextValue(hprev string, val string) string {
   return strconv.Itoa(int(h))
 }
 
+func mbcleanup(mba []*messagebroker.MBServer) {
+  for i := 0; i < len(mba); i++ {
+    if mba[i] != nil {
+      mba[i].Kill()
+    }
+  }
+}
+
 func mcleanup(sma []*shardmaster.ShardMaster) {
   for i := 0; i < len(sma); i++ {
     if sma[i] != nil {
@@ -85,7 +93,7 @@ func setup(tag string, unreliable bool) ([]string, []int64, [][]string, [][]*Sha
     }
   }
 
-  clean := func() { cleanup(sa); mcleanup(sma) }
+  clean := func() { cleanup(sa); mcleanup(sma); mbcleanup(mba) }
   return smh, gids, ha, sa, clean
 }
 
