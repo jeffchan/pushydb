@@ -45,6 +45,7 @@ type PublishReply struct {
 }
 
 type NotifyArgs struct {
+  Seq         int
   PublishArgs PublishArgs
   Subscribers map[string]bool
 }

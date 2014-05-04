@@ -14,6 +14,7 @@ import "math/rand"
 import "shardmaster"
 import "strconv"
 import "strings"
+import "messagebroker"
 
 const (
   ServerLog           = false
@@ -92,11 +93,13 @@ type ShardKV struct {
   config   shardmaster.Config
   transfer sync.Mutex
 
-  table          map[string]*Entry         // key -> value
-  tableCache     map[int]map[string]*Entry // confignum -> key -> value
-  reqs           map[string]*Result
-  reqsCache      map[int]map[string]*Result
+  table      map[string]*Entry         // key -> value
+  tableCache map[int]map[string]*Entry // confignum -> key -> value
+  reqs       map[string]*Result
+  reqsCache  map[int]map[string]*Result
+
   lastAppliedSeq int
+  notifySeq      int
 }
 
 func (kv *ShardKV) Get(args *GetArgs, reply *GetReply) error {
@@ -204,6 +207,32 @@ func (kv *ShardKV) Transfer(args *TransferArgs, reply *TransferReply) error {
   // kv.log("Transfer return, config=%d, shard=%d", configNum, shard)
 
   return nil
+}
+
+func (kv *ShardKV) notify(
+  seq int,
+  key string,
+  val string,
+  subscribers map[string]bool,
+  reqId string) {
+
+  args := &messagebroker.NotifyArgs{
+    Seq: seq,
+    PublishArgs: messagebroker.PublishArgs{
+      Key:   key,
+      Value: val,
+      ReqId: reqId,
+    },
+    Subscribers: CopySubscribers(subscribers),
+  }
+  var reply messagebroker.NotifyReply
+
+  ok := call("", "MBServer.Notify", args, &reply)
+  if ok {
+    return
+  } else {
+    // retry
+  }
 }
 
 func (kv *ShardKV) resolveOp(op Op) (string, Err) {
@@ -319,6 +348,11 @@ func (kv *ShardKV) applyPut(args PutArgs, timestamp time.Time) (string, Err) {
   }
 
   kv.table[key] = entry
+
+  // TODO: don't need to publish if no subscribers
+  // Publish
+  kv.notifySeq += 1
+  go kv.notify(kv.notifySeq, key, val, entry.Subscribers, args.ReqId)
 
   return oldval, OK
 }
@@ -583,7 +617,9 @@ func StartServer(gid int64, shardmasters []string,
   kv.tableCache = make(map[int]map[string]*Entry)
   kv.reqs = make(map[string]*Result)
   kv.reqsCache = make(map[int]map[string]*Result)
+
   kv.lastAppliedSeq = -1
+  kv.notifySeq = 0
 
   rpcs := rpc.NewServer()
   rpcs.Register(kv)
