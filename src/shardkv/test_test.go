@@ -197,11 +197,11 @@ func TestBasicExpiry(t *testing.T) {
   fmt.Printf("  ... Passed\n")
 }
 
-func TestSubscribe(t *testing.T) {
-  smh, gids, ha, _, clean := setup("subscribe", false)
+func TestBasicPubSub(t *testing.T) {
+  smh, gids, ha, _, clean := setup("basicpubsub", false)
   defer clean()
 
-  fmt.Printf("Test: Subscribe ...\n")
+  fmt.Printf("Test: Basic Pub/Sub ...\n")
   mck := shardmaster.MakeClerk(smh)
   mck.Join(gids[0], ha[0])
 
