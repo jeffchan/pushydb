@@ -14,10 +14,13 @@ default: help
 help:
 	@echo "$$USAGE"
 
+get:
+	@go get shardkv
+
 fmt:
 	@gofmt -tabs=false -tabwidth=2 -w .
 
-test: fmt
+test: fmt get
 	@go test shardkv
 
-.PHONY: help fmt test
+.PHONY: help fmt test get
