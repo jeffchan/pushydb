@@ -53,7 +53,8 @@ func TestBasic(t *testing.T) {
 
   addr := port("basic-clerk", 0)
   publications := make(chan PublishArgs)
-  MakeClerk(addr, publications)
+  clerk := MakeClerk(addr, publications)
+  defer func() { clerk.Kill() }()
 
   pubArgs := PublishArgs{
     Key:   "a",
