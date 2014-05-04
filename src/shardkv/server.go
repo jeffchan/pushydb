@@ -608,6 +608,7 @@ func StartServer(gid int64,
   gob.Register(Op{})
   gob.Register(PutArgs{})
   gob.Register(GetArgs{})
+  gob.Register(SubscribeArgs{})
   gob.Register(ReconfigArgs{})
   gob.Register(TransferArgs{})
 

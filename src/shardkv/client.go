@@ -20,6 +20,7 @@ type Clerk struct {
   id      string
   counter uint64
 
+  addr    string
   mb      *messagebroker.Clerk
   Receive chan messagebroker.PublishArgs
 }
@@ -30,9 +31,9 @@ func MakeClerk(shardmasters []string) *Clerk {
   ck.id = strconv.Itoa(int(nrand()))
   ck.counter = 0
 
+  ck.addr = "/var/tmp/824-"+ck.id
   ck.Receive = make(chan messagebroker.PublishArgs)
-  ck.mb = messagebroker.MakeClerk("/var/tmp/824-"+ck.id, ck.Receive)
-  // TODO: need to kill this clerk
+  ck.mb = messagebroker.MakeClerk(ck.addr, ck.Receive)
   return ck
 }
 
@@ -57,6 +58,61 @@ func (ck *Clerk) log(format string, a ...interface{}) (n int, err error) {
   return
 }
 
+func (ck *Clerk) Kill() {
+  ck.mb.Kill()
+}
+
+//
+// Subscribe to changes to a given key
+// Recieve changes on Receive channel
+// Set unsub = true to unsubscribe
+//
+func (ck *Clerk) SubscribeExt(key string, unsub bool) {
+  ck.mu.Lock()
+  defer ck.mu.Unlock()
+
+  reqId := ck.reqId()
+
+  for {
+    shard := key2shard(key)
+
+    gid := ck.config.Shards[shard]
+
+    servers, ok := ck.config.Groups[gid]
+
+    if ok {
+      // try each server in the shard's replication group.
+      for _, srv := range servers {
+        args := &SubscribeArgs{}
+        args.Key = key
+        args.Address = ck.addr
+        args.Unsubscribe = unsub
+        args.ReqId = reqId
+        var reply SubscribeReply
+        ok := call(srv, "ShardKV.Subscribe", args, &reply)
+        if ok && reply.Err == OK {
+          return
+        }
+        if ok && (reply.Err == ErrWrongGroup) {
+          break
+        }
+      }
+    }
+
+    time.Sleep(100 * time.Millisecond)
+
+    // ask master for a new configuration.
+    ck.config = ck.sm.Query(-1)
+  }
+}
+
+func (ck *Clerk) Subscribe(key string) {
+  ck.SubscribeExt(key, false)
+}
+func (ck *Clerk) Unsubscribe(key string) {
+  ck.SubscribeExt(key, true)
+}
+
 //
 // fetch the current value for a key.
 // returns "" if the key does not exist.
@@ -66,7 +122,6 @@ func (ck *Clerk) Get(key string) string {
   ck.mu.Lock()
   defer ck.mu.Unlock()
 
-  // You'll have to modify Get().
   reqId := ck.reqId()
 
   for {
@@ -110,7 +165,6 @@ func (ck *Clerk) PutExt(
   ck.mu.Lock()
   defer ck.mu.Unlock()
 
-  // You'll have to modify Put().
   reqId := ck.reqId()
 
   for {
