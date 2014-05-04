@@ -54,7 +54,9 @@ func (entry *Entry) IsExpired(refTime time.Time) bool {
 func CopySubscribers(src map[string]bool) map[string]bool {
   dst := make(map[string]bool)
   for k, v := range src {
-    dst[k] = v
+    if v {
+      dst[k] = v
+    }
   }
   return dst
 }
