@@ -225,6 +225,7 @@ func TestSubscribeMove(t *testing.T) {
   fmt.Printf("  ... Passed\n")
 }
 
+// TODO
 func TestSubscribeConcurrent(t *testing.T) {
   fmt.Printf("Test: Concurrent Pub/Sub ...\n")
 
@@ -352,8 +353,15 @@ func TestUnsubscribeMove(t *testing.T) {
   fmt.Printf("  ... Passed\n")
 }
 
-//concurrent
-//concurrent, unreliable
+// TODO
+func TestUnsubscribeConcurrent(t *testing.T) {
+  fmt.Printf("Test: Unsubscribe Concurrent Pub/Sub ...\n")
+
+}
+
+func TestUnsubscribeConcurrentUnreliable(t *testing.T) {
+  fmt.Printf("Test: Unsubscribe Concurrent Unreliable Pub/Sub ...\n")
+}
 
 /*************************************************
 ******************ORIGINAL TESTS*****************
