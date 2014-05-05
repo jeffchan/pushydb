@@ -147,7 +147,7 @@ func TestGroups(t *testing.T) {
   ngroups := 4
 
 
-  gids = make([]int, 0, npublish)
+  gids := make([]int, 0, npublish)
   for i := 0; i< npublish; i++ {
     gids = append(gids, i % ngroups)
   }
@@ -165,7 +165,7 @@ func TestGroups(t *testing.T) {
   notifyArgs := make([]*NotifyArgs, 0, npublish)
   for i := 0; i < npublish; i++ {
     notifyArg := &NotifyArgs{
-      GID:         gids[i],
+      GID:         int64(gids[i]),
       Seq:         i/ngroups,
       PublishArgs: pubArgs[i],
       Subscribers: map[string]bool{addr: true},
@@ -186,13 +186,15 @@ func TestGroups(t *testing.T) {
     }(i)
   }
 
-  lasts := []int{-1 -1 -1 -1}
+  lasts := []int{-1, -1, -1, -1}
   for i:=0; i < npublish; i++ {
     pub := <-publications
-    index := strconv.Itoa(pub.Key)
-    if lasts[index]+1 != pub.Value {
-      t.Fatalf("Wrong publication; expected key %s: value %s, got key %s: value %s", index, lasts[index]+1, index, pub.Value)
+    index, _ := strconv.Atoi(pub.Key)
+    value, _ := strconv.Atoi(pub.Value)
+    if lasts[index]+1 !=  value {
+      t.Fatalf("Wrong publication; expected key/value %s:%s, got key/value %s:%s", index, lasts[index]+1, index, value)
     }
+    lasts[index] += 1
   }
   
   fmt.Printf(" ...Passed\n")
