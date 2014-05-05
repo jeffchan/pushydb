@@ -153,28 +153,6 @@ func TestExpiryBasic(t *testing.T) {
 *******************PUBSUB TESTS******************
 *************************************************/
 
-func TestPubSubBasic(t *testing.T) {
-  smh, gids, ha, _, clean := setup("pubsub-basic", false, false)
-  defer clean()
-
-  fmt.Printf("Test: Pub/Sub Basic ...\n")
-  mck := shardmaster.MakeClerk(smh)
-  mck.Join(gids[0], ha[0])
-
-  ck := MakeClerk(smh)
-  defer cleanupClerk(ck)
-
-  // Close receive channel
-  close(ck.Receive)
-
-  // Souldn't receive anything now - will panic otherwise
-  ck.Put("d", "x")
-
-  time.Sleep(30 * time.Millisecond)
-
-  fmt.Printf("  ... Passed\n")
-}
-
 func TestPubSubJoin(t *testing.T) {
   smh, gids, ha, _, clean := setup("pubsub-join", false, false)
   defer clean()
