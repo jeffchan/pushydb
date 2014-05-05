@@ -125,16 +125,17 @@ func (mb *MBServer) resolveOp(op Op) Err {
 func (mb *MBServer) publish(client string, gid int64, next int) {
   for !mb.dead {
     notification, exists := mb.getNotifications(gid, next)
-
     // Wait until next notification is available
     for !exists && !mb.dead {
       notification, exists = mb.getNotifications(gid, next)
       time.Sleep(50 * time.Millisecond)
     }
 
+    if notification == nil {
+      return
+    }
+
     // Only publish if client on the subscriber list
-    fmt.Println("notification", notification)
-    fmt.Println("exists", exists)
     _, toPublish := notification.Subscribers[client]
     if toPublish {
       pubArgs := notification.PublishArgs

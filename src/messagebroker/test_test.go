@@ -96,29 +96,29 @@ func TestMany(t *testing.T) {
   npublish := 10
 
   pubArgs := make([]PublishArgs, 0, npublish)
-  for i:=0; i< npublish; i++ {
+  for i := 0; i < npublish; i++ {
     pubArg := PublishArgs{
-      Key: "a", 
-      Value:strconv.Itoa(i), 
-      ReqId: "many-"+strconv.Itoa(i+1),
+      Key:   "a",
+      Value: strconv.Itoa(i),
+      ReqId: "many-" + strconv.Itoa(i+1),
     }
     pubArgs = append(pubArgs, pubArg)
   }
 
   notifyArgs := make([]*NotifyArgs, 0, npublish)
-  for i:=0; i< npublish; i++ {
+  for i := 0; i < npublish; i++ {
     notifyArg := &NotifyArgs{
-      Seq: i+1,
-      PublishArgs: pubArgs[i], 
-      Subscribers: map[string]bool{addr:true},
+      Seq:         i + 1,
+      PublishArgs: pubArgs[i],
+      Subscribers: map[string]bool{addr: true},
     }
     notifyArgs = append(notifyArgs, notifyArg)
   }
 
   var reply NotifyReply
-  for i:=0; i < npublish; i++ {
+  for i := 0; i < npublish; i++ {
     mbservers[rand.Int()%len(mbservers)].Notify(notifyArgs[i], &reply)
-    pub := <- publications
+    pub := <-publications
     if pub != pubArgs[i] {
       t.Fatalf("Wrong publication; expected %s, got %s", pubArgs[i], pub)
     }
