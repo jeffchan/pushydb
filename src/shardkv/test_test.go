@@ -220,6 +220,64 @@ func TestBasicPubSub(t *testing.T) {
   fmt.Printf("  ... Passed\n")
 }
 
+func TestJoinPubSub(t *testing.T) { //sometimes doesnt pass...
+  smh, gids, ha, _, clean := setup("joinpubsub", false)
+  defer clean()
+
+  fmt.Printf("Test: Join Pub/Sub ...\n")
+  mck := shardmaster.MakeClerk(smh)
+  mck.Join(gids[0], ha[0])
+
+  ck := MakeClerk(smh)
+  defer cleanupClerk(ck)
+
+  ck.Subscribe("d")
+
+  ck.Put("d", "x")
+  v := <- ck.Receive
+  if v.Value != "x" {
+    t.Fatalf("Receive got the wrong value")
+  }
+
+  mck.Join(gids[1], ha[1])
+  ck.Put("d", "y")
+  v = <- ck.Receive
+  if v.Value != "y" {
+    t.Fatalf("Receive got the wrong value")
+  }
+
+  fmt.Printf("  ... Passed\n")
+}
+
+func  TestMovePubSub(t *testing.T) {
+  smh, gids, ha, _, clean := setup("movepubsub", false)
+  defer clean()
+
+  fmt.Printf("Test: Multiple Move Pub/Sub ...\n")
+  mck := shardmaster.MakeClerk(smh)
+  for i := 0; i < len(gids); i++ {
+    mck.Join(gids[i], ha[i])
+  }
+
+  ck := MakeClerk(smh)
+  defer cleanupClerk(ck)
+
+  ck.Subscribe("d")
+
+  for i:=0; i < shardmaster.NShards; i++ {
+    val := string('0'+i)
+    ck.Put("d", val)
+    fmt.Println("Inputting value", val)
+    v := <- ck.Receive
+    if v.Value != val {
+      t.Fatalf("Receive got the wrong value")
+    }
+    mck.Move(0, gids[rand.Int() % len(gids)])
+  }
+
+  fmt.Printf("  ... Passed\n")
+}
+
 func TestMove(t *testing.T) {
   smh, gids, ha, _, clean := setup("move", false)
   defer clean()
