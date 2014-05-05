@@ -142,107 +142,11 @@ func TestExpiryBasic(t *testing.T) {
 *******************PUBSUB TESTS******************
 *************************************************/
 
-func TestSubscribeBasic(t *testing.T) {
-  smh, gids, ha, _, clean := setup("subscribe-basic", false)
+func TestPubSubBasic(t *testing.T) {
+  smh, gids, ha, _, clean := setup("pubsub-basic", false)
   defer clean()
 
-  fmt.Printf("Test: Basic Pub/Sub ...\n")
-  mck := shardmaster.MakeClerk(smh)
-  mck.Join(gids[0], ha[0])
-
-  ck := MakeClerk(smh)
-  defer cleanupClerk(ck)
-
-  ck.Subscribe("a")
-
-  ck.Put("a", "x")
-
-  v := <-ck.Receive
-  if v.Value != "x" {
-    t.Fatalf("Receive got wrong value")
-  }
-
-  fmt.Printf("  ... Passed\n")
-}
-
-func TestSubscribeJoin(t *testing.T) { //sometimes doesnt pass...
-  smh, gids, ha, _, clean := setup("subscribe-join", false)
-  defer clean()
-
-  fmt.Printf("Test: Join Pub/Sub ...\n")
-  mck := shardmaster.MakeClerk(smh)
-  mck.Join(gids[0], ha[0])
-
-  ck := MakeClerk(smh)
-  defer cleanupClerk(ck)
-
-  ck.Subscribe("d")
-
-  ck.Put("d", "x")
-  v := <-ck.Receive
-  if v.Value != "x" {
-    t.Fatalf("Receive got the wrong value")
-  }
-
-  // New group join, old group leave
-  mck.Join(gids[1], ha[1])
-  mck.Leave(gids[0])
-
-  ck.Put("d", "y")
-  v = <-ck.Receive
-  if v.Value != "y" {
-    t.Fatalf("Receive got the wrong value")
-  }
-
-  fmt.Printf("  ... Passed\n")
-}
-
-func TestSubscribeMove(t *testing.T) {
-  smh, gids, ha, _, clean := setup("subscribe-move", false)
-  defer clean()
-
-  fmt.Printf("Test: Multiple Move Pub/Sub ...\n")
-  mck := shardmaster.MakeClerk(smh)
-  for i := 0; i < len(gids); i++ {
-    mck.Join(gids[i], ha[i])
-  }
-
-  ck := MakeClerk(smh)
-  defer cleanupClerk(ck)
-
-  ck.Subscribe("d")
-
-  for i := 0; i < shardmaster.NShards; i++ {
-    val := string('0' + i)
-    ck.Put("d", val)
-    v := <-ck.Receive
-    if v.Value != val {
-      t.Fatalf("Receive got the wrong value")
-    }
-    mck.Move(0, gids[rand.Int()%len(gids)])
-  }
-
-  fmt.Printf("  ... Passed\n")
-}
-
-// TODO
-func TestSubscribeConcurrent(t *testing.T) {
-  fmt.Printf("Test: Concurrent Pub/Sub ...\n")
-
-}
-
-func TestSubscribeConcurrentUnreliable(t *testing.T) {
-  fmt.Printf("Test: Concurrent Unreliable Pub/Sub ...\n")
-}
-
-/*************************************************
-*****************UNSUBSCRIBE TESTS****************
-*************************************************/
-func TestUnsubscribeBasic(t *testing.T) { //basic
-  smh, gids, ha, _, clean := setup("unsub-basic", false)
-  defer clean()
-
-  fmt.Printf("Test: Unsubscribe Pub/Sub ...\n")
+  fmt.Printf("Test: Pub/Sub Basic ...\n")
   mck := shardmaster.MakeClerk(smh)
   mck.Join(gids[0], ha[0])
 
@@ -273,11 +177,11 @@ func TestUnsubscribeBasic(t *testing.T) { //basic
   fmt.Printf("  ... Passed\n")
 }
 
-func TestUnsubscribeJoin(t *testing.T) {
-  smh, gids, ha, _, clean := setup("unsub-join", false)
+func TestPubSubJoin(t *testing.T) {
+  smh, gids, ha, _, clean := setup("pubsub-join", false)
   defer clean()
 
-  fmt.Printf("Test: Unsubscribe Join Pub/Sub ...\n")
+  fmt.Printf("Test: Pub/Sub Join ...\n")
   mck := shardmaster.MakeClerk(smh)
   mck.Join(gids[0], ha[0])
 
@@ -312,11 +216,11 @@ func TestUnsubscribeJoin(t *testing.T) {
   fmt.Printf("  ... Passed\n")
 }
 
-func TestUnsubscribeMove(t *testing.T) {
-  smh, gids, ha, _, clean := setup("unsub-move", false)
+func TestPubSubMove(t *testing.T) {
+  smh, gids, ha, _, clean := setup("pubsub-move", false)
   defer clean()
 
-  fmt.Printf("Test: Unsubscribe Multiple Move Pub/Sub ...\n")
+  fmt.Printf("Test: Pub/Sub Multiple Move ...\n")
   mck := shardmaster.MakeClerk(smh)
   for i := 0; i < len(gids); i++ {
     mck.Join(gids[i], ha[i])
@@ -354,13 +258,13 @@ func TestUnsubscribeMove(t *testing.T) {
 }
 
 // TODO
-func TestUnsubscribeConcurrent(t *testing.T) {
-  fmt.Printf("Test: Unsubscribe Concurrent Pub/Sub ...\n")
+func TestPubSubConcurrent(t *testing.T) {
+  fmt.Printf("Test: Pub/Sub Concurrent ...\n")
 
 }
 
-func TestUnsubscribeConcurrentUnreliable(t *testing.T) {
-  fmt.Printf("Test: Unsubscribe Concurrent Unreliable Pub/Sub ...\n")
+func TestPubSubConcurrentUnreliable(t *testing.T) {
+  fmt.Printf("Test: Pub/Sub Concurrent Unreliable ...\n")
 }
 
 /*************************************************
