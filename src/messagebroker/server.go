@@ -210,7 +210,7 @@ func (mb *MBServer) getReqs(gid int64, seq int) (Err, bool) {
   reqs, exists := mb.reqs[gid]
   if !exists {
     mb.reqs[gid] = make(map[int]Err)
-    return "",false
+    return "", false
   }
 
   result, ok := reqs[seq]
@@ -236,7 +236,7 @@ func (mb *MBServer) getNotifications(gid int64, seq int) (*NotifyArgs, bool) {
   notifications, exists := mb.notifications[gid]
   if !exists {
     mb.notifications[gid] = make(map[int]*NotifyArgs)
-    return nil,false
+    return nil, false
   }
 
   result, ok := notifications[seq]
@@ -250,7 +250,7 @@ func (mb *MBServer) getNext(gid int64, client string) (int, bool) {
   next, exists := mb.next[gid]
   if !exists {
     mb.next[gid] = make(map[string]int)
-    return 0,false
+    return 0, false
   }
 
   result, ok := next[client]
