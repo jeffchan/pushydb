@@ -137,6 +137,8 @@ func (mb *MBServer) publish(client string, next int) {
     }
 
     // Only publish if client on the subscriber list
+    fmt.Println("notification", notification)
+    fmt.Println("exists", exists)
     _, toPublish := notification.Subscribers[client]
     if toPublish {
       pubArgs := notification.PublishArgs
