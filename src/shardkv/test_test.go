@@ -101,6 +101,240 @@ func setup(tag string, unreliable bool) ([]string, []int64, [][]string, [][]*Sha
   return smh, gids, ha, sa, clean
 }
 
+/*************************************************
+*******************EXPIRY TESTS******************
+*************************************************/
+
+func TestBasicExpiry(t *testing.T) {
+  smh, gids, ha, _, clean := setup("basicexpiry", false)
+  defer clean()
+
+  fmt.Printf("Test: Basic Expiry ...\n")
+  mck := shardmaster.MakeClerk(smh)
+  mck.Join(gids[0], ha[0])
+
+  ck := MakeClerk(smh)
+  defer cleanupClerk(ck)
+
+  ttl := 2 * time.Second
+  ck.PutExt("a", "x", false, ttl)
+
+  v := ck.Get("a")
+  if v != "x" {
+    t.Fatalf("Get got wrong value")
+  }
+  time.Sleep(ttl)
+
+  ov := ck.Get("a")
+  if ov != "" {
+    t.Fatalf("Get got value, should've expired")
+  }
+
+  ov = ck.PutHash("a", "b")
+  if ov != "" {
+    t.Fatalf("Put got value, should've expired")
+  }
+
+  fmt.Printf("  ... Passed\n")
+}
+
+/*************************************************
+*******************PUBSUB TESTS******************
+*************************************************/
+
+func TestBasicPubSub(t *testing.T) {
+  smh, gids, ha, _, clean := setup("basicpubsub", false)
+  defer clean()
+
+  fmt.Printf("Test: Basic Pub/Sub ...\n")
+  mck := shardmaster.MakeClerk(smh)
+  mck.Join(gids[0], ha[0])
+
+  ck := MakeClerk(smh)
+  defer cleanupClerk(ck)
+
+  ck.Subscribe("a")
+
+  ck.Put("a", "x")
+
+  v := <-ck.Receive
+  if v.Value != "x" {
+    t.Fatalf("Receive got wrong value")
+  }
+
+  fmt.Printf("  ... Passed\n")
+}
+
+func TestJoinPubSub(t *testing.T) { //sometimes doesnt pass...
+  smh, gids, ha, _, clean := setup("joinpubsub", false)
+  defer clean()
+
+  fmt.Printf("Test: Join Pub/Sub ...\n")
+  mck := shardmaster.MakeClerk(smh)
+  mck.Join(gids[0], ha[0])
+
+  ck := MakeClerk(smh)
+  defer cleanupClerk(ck)
+
+  ck.Subscribe("d")
+
+  ck.Put("d", "x")
+  v := <- ck.Receive
+  if v.Value != "x" {
+    t.Fatalf("Receive got the wrong value")
+  }
+
+  mck.Join(gids[1], ha[1])
+  ck.Put("d", "y")
+  v = <- ck.Receive
+  if v.Value != "y" {
+    t.Fatalf("Receive got the wrong value")
+  }
+
+  fmt.Printf("  ... Passed\n")
+}
+
+func TestMovePubSub(t *testing.T) {
+  smh, gids, ha, _, clean := setup("movepubsub", false)
+  defer clean()
+
+  fmt.Printf("Test: Multiple Move Pub/Sub ...\n")
+  mck := shardmaster.MakeClerk(smh)
+  for i := 0; i < len(gids); i++ {
+    mck.Join(gids[i], ha[i])
+  }
+
+  ck := MakeClerk(smh)
+  defer cleanupClerk(ck)
+
+  ck.Subscribe("d")
+
+  for i:=0; i < shardmaster.NShards; i++ {
+    val := string('0'+i)
+    ck.Put("d", val)
+    fmt.Println("Inputting value", val)
+    v := <- ck.Receive
+    if v.Value != val {
+      t.Fatalf("Receive got the wrong value")
+    }
+    mck.Move(0, gids[rand.Int() % len(gids)])
+  }
+
+  fmt.Printf("  ... Passed\n")
+}
+
+func TestConcurrentPubSub(t *testing.T) {
+  fmt.Printf("Test: Concurrent Pub/Sub ...\n")
+}
+
+func TestConcurrentUnreliablePubSub(t *testing.T) {
+  fmt.Printf("Test: Concurrent Unreliable Pub/Sub ...\n")
+}
+
+/*************************************************
+*****************UNSUBSCRIBE TESTS****************
+*************************************************/
+func TestUnsubscribePubSub(t *testing.T) { //basic
+  smh, gids, ha, _, clean := setup("unsubpubsub", false)
+  defer clean()
+
+  fmt.Printf("Test: Unsubscribe Pub/Sub ...\n")
+  mck := shardmaster.MakeClerk(smh)
+  mck.Join(gids[0], ha[0])
+
+  ck := MakeClerk(smh)
+  defer cleanupClerk(ck)
+
+  ck.Subscribe("d")
+
+  ck.Put("d", "x")
+  v := <- ck.Receive
+  if v.Value != "x" {
+    t.Fatalf("Receive got the wrong value")
+  }
+
+  ck.Unsubscribe("d")
+  close(ck.Receive)
+  ck.Put("d", "x")
+  time.Sleep(30 * time.Millisecond)
+
+  fmt.Printf("  ... Passed\n")
+}
+
+func TestUnsubscribeJoinPubSub(t *testing.T) {
+  smh, gids, ha, _, clean := setup("unsubjoinpubsub", false)
+  defer clean()
+
+  fmt.Printf("Test: Unsubscribe Join Pub/Sub ...\n")
+  mck := shardmaster.MakeClerk(smh)
+  mck.Join(gids[0], ha[0])
+
+  ck := MakeClerk(smh)
+  defer cleanupClerk(ck)
+
+  ck.Subscribe("d")
+
+  ck.Put("d", "x")
+  v := <- ck.Receive
+  if v.Value != "x" {
+    t.Fatalf("Receive got the wrong value")
+  }
+
+  mck.Join(gids[1], ha[1])
+  ck.Unsubscribe("d")
+  close(ck.Receive)
+  ck.Put("d", "x")
+  time.Sleep(30 * time.Millisecond)
+
+  fmt.Printf("  ... Passed\n")
+}
+
+func TestUnsubscribeMovePubSub(t *testing.T) {
+  smh, gids, ha, _, clean := setup("unsubmovepubsub", false)
+  defer clean()
+
+  fmt.Printf("Test: Unsubscribe Multiple Move Pub/Sub ...\n")
+  mck := shardmaster.MakeClerk(smh)
+  for i := 0; i < len(gids); i++ {
+    mck.Join(gids[i], ha[i])
+  }
+
+  ck := MakeClerk(smh)
+  defer cleanupClerk(ck)
+
+  ck.Subscribe("d")
+
+  for i:=0; i < shardmaster.NShards; i++ {
+    val := string('0'+i)
+    ck.Put("d", val)
+    fmt.Println("Inputting value", val)
+    v := <- ck.Receive
+    if v.Value != val {
+      t.Fatalf("Receive got the wrong value")
+    }
+    mck.Move(0, gids[rand.Int() % len(gids)])
+  }
+
+  close(ck.Receive)
+
+  for i:=0; i<shardmaster.NShards; i++ {
+    val := string('0'+i)
+    ck.Put("d", val)
+    mck.Move(0, gids[rand.Int() % len(gids)])
+  }
+
+  time.Sleep(30*time.Millisecond)
+
+  fmt.Printf("  ... Passed\n")
+}
+
+//concurrent
+//concurrent, unreliable
+
+/*************************************************
+******************ORIGINAL TESTS*****************
+*************************************************/
+
 func TestBasic(t *testing.T) {
   smh, gids, ha, _, clean := setup("basic", false)
   defer clean()
@@ -164,119 +398,6 @@ func TestBasic(t *testing.T) {
   fmt.Printf("  ... Passed\n")
 }
 
-func TestBasicExpiry(t *testing.T) {
-  smh, gids, ha, _, clean := setup("basicexpiry", false)
-  defer clean()
-
-  fmt.Printf("Test: Basic Expiry ...\n")
-  mck := shardmaster.MakeClerk(smh)
-  mck.Join(gids[0], ha[0])
-
-  ck := MakeClerk(smh)
-  defer cleanupClerk(ck)
-
-  ttl := 2 * time.Second
-  ck.PutExt("a", "x", false, ttl)
-
-  v := ck.Get("a")
-  if v != "x" {
-    t.Fatalf("Get got wrong value")
-  }
-  time.Sleep(ttl)
-
-  ov := ck.Get("a")
-  if ov != "" {
-    t.Fatalf("Get got value, should've expired")
-  }
-
-  ov = ck.PutHash("a", "b")
-  if ov != "" {
-    t.Fatalf("Put got value, should've expired")
-  }
-
-  fmt.Printf("  ... Passed\n")
-}
-
-func TestBasicPubSub(t *testing.T) {
-  smh, gids, ha, _, clean := setup("basicpubsub", false)
-  defer clean()
-
-  fmt.Printf("Test: Basic Pub/Sub ...\n")
-  mck := shardmaster.MakeClerk(smh)
-  mck.Join(gids[0], ha[0])
-
-  ck := MakeClerk(smh)
-  defer cleanupClerk(ck)
-
-  ck.Subscribe("a")
-
-  ck.Put("a", "x")
-
-  v := <-ck.Receive
-  if v.Value != "x" {
-    t.Fatalf("Receive got wrong value")
-  }
-
-  fmt.Printf("  ... Passed\n")
-}
-
-func TestJoinPubSub(t *testing.T) { //sometimes doesnt pass...
-  smh, gids, ha, _, clean := setup("joinpubsub", false)
-  defer clean()
-
-  fmt.Printf("Test: Join Pub/Sub ...\n")
-  mck := shardmaster.MakeClerk(smh)
-  mck.Join(gids[0], ha[0])
-
-  ck := MakeClerk(smh)
-  defer cleanupClerk(ck)
-
-  ck.Subscribe("d")
-
-  ck.Put("d", "x")
-  v := <- ck.Receive
-  if v.Value != "x" {
-    t.Fatalf("Receive got the wrong value")
-  }
-
-  mck.Join(gids[1], ha[1])
-  ck.Put("d", "y")
-  v = <- ck.Receive
-  if v.Value != "y" {
-    t.Fatalf("Receive got the wrong value")
-  }
-
-  fmt.Printf("  ... Passed\n")
-}
-
-func  TestMovePubSub(t *testing.T) {
-  smh, gids, ha, _, clean := setup("movepubsub", false)
-  defer clean()
-
-  fmt.Printf("Test: Multiple Move Pub/Sub ...\n")
-  mck := shardmaster.MakeClerk(smh)
-  for i := 0; i < len(gids); i++ {
-    mck.Join(gids[i], ha[i])
-  }
-
-  ck := MakeClerk(smh)
-  defer cleanupClerk(ck)
-
-  ck.Subscribe("d")
-
-  for i:=0; i < shardmaster.NShards; i++ {
-    val := string('0'+i)
-    ck.Put("d", val)
-    fmt.Println("Inputting value", val)
-    v := <- ck.Receive
-    if v.Value != val {
-      t.Fatalf("Receive got the wrong value")
-    }
-    mck.Move(0, gids[rand.Int() % len(gids)])
-  }
-
-  fmt.Printf("  ... Passed\n")
-}
 
 func TestMove(t *testing.T) {
   smh, gids, ha, _, clean := setup("move", false)
