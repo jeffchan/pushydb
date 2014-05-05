@@ -336,6 +336,9 @@ func TestUnsubscribeMove(t *testing.T) {
     mck.Move(0, gids[rand.Int()%len(gids)])
   }
 
+  // Unsubscribe from key
+  ck.Unsubscribe("d")
+
   close(ck.Receive)
 
   for i := 0; i < shardmaster.NShards; i++ {
