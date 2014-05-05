@@ -179,14 +179,14 @@ func TestJoinPubSub(t *testing.T) { //sometimes doesnt pass...
   ck.Subscribe("d")
 
   ck.Put("d", "x")
-  v := <- ck.Receive
+  v := <-ck.Receive
   if v.Value != "x" {
     t.Fatalf("Receive got the wrong value")
   }
 
   mck.Join(gids[1], ha[1])
   ck.Put("d", "y")
-  v = <- ck.Receive
+  v = <-ck.Receive
   if v.Value != "y" {
     t.Fatalf("Receive got the wrong value")
   }
@@ -209,15 +209,15 @@ func TestMovePubSub(t *testing.T) {
 
   ck.Subscribe("d")
 
-  for i:=0; i < shardmaster.NShards; i++ {
-    val := string('0'+i)
+  for i := 0; i < shardmaster.NShards; i++ {
+    val := string('0' + i)
     ck.Put("d", val)
     fmt.Println("Inputting value", val)
-    v := <- ck.Receive
+    v := <-ck.Receive
     if v.Value != val {
       t.Fatalf("Receive got the wrong value")
     }
-    mck.Move(0, gids[rand.Int() % len(gids)])
+    mck.Move(0, gids[rand.Int()%len(gids)])
   }
 
   fmt.Printf("  ... Passed\n")
@@ -249,7 +249,7 @@ func TestUnsubscribePubSub(t *testing.T) { //basic
   ck.Subscribe("d")
 
   ck.Put("d", "x")
-  v := <- ck.Receive
+  v := <-ck.Receive
   if v.Value != "x" {
     t.Fatalf("Receive got the wrong value")
   }
@@ -276,7 +276,7 @@ func TestUnsubscribeJoinPubSub(t *testing.T) {
   ck.Subscribe("d")
 
   ck.Put("d", "x")
-  v := <- ck.Receive
+  v := <-ck.Receive
   if v.Value != "x" {
     t.Fatalf("Receive got the wrong value")
   }
@@ -305,26 +305,26 @@ func TestUnsubscribeMovePubSub(t *testing.T) {
 
   ck.Subscribe("d")
 
-  for i:=0; i < shardmaster.NShards; i++ {
-    val := string('0'+i)
+  for i := 0; i < shardmaster.NShards; i++ {
+    val := string('0' + i)
     ck.Put("d", val)
     fmt.Println("Inputting value", val)
-    v := <- ck.Receive
+    v := <-ck.Receive
     if v.Value != val {
       t.Fatalf("Receive got the wrong value")
     }
-    mck.Move(0, gids[rand.Int() % len(gids)])
+    mck.Move(0, gids[rand.Int()%len(gids)])
   }
 
   close(ck.Receive)
 
-  for i:=0; i<shardmaster.NShards; i++ {
-    val := string('0'+i)
+  for i := 0; i < shardmaster.NShards; i++ {
+    val := string('0' + i)
     ck.Put("d", val)
-    mck.Move(0, gids[rand.Int() % len(gids)])
+    mck.Move(0, gids[rand.Int()%len(gids)])
   }
 
-  time.Sleep(30*time.Millisecond)
+  time.Sleep(30 * time.Millisecond)
 
   fmt.Printf("  ... Passed\n")
 }
@@ -398,7 +398,6 @@ func TestBasic(t *testing.T) {
 
   fmt.Printf("  ... Passed\n")
 }
-
 
 func TestMove(t *testing.T) {
   smh, gids, ha, _, clean := setup("move", false)
