@@ -67,6 +67,8 @@ func TestBasic(t *testing.T) {
     ReqId: "basic",
   }
   args := &NotifyArgs{
+    GID:         0,
+    Seq:         0,
     PublishArgs: pubArgs,
     Subscribers: map[string]bool{addr: true},
   }
@@ -108,6 +110,7 @@ func TestMany(t *testing.T) {
   notifyArgs := make([]*NotifyArgs, 0, npublish)
   for i := 0; i < npublish; i++ {
     notifyArg := &NotifyArgs{
+      GID:         0,
       Seq:         i + 1,
       PublishArgs: pubArgs[i],
       Subscribers: map[string]bool{addr: true},

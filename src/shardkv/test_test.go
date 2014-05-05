@@ -187,8 +187,10 @@ func TestPubSubJoin(t *testing.T) { //sometimes doesnt pass...
   ck := MakeClerk(smh)
   defer cleanupClerk(ck)
 
+  // Subscribe from key
   ck.Subscribe("d")
 
+  // Should receive changes to key=d
   ck.Put("d", "x")
   v := <-ck.Receive
   if v.Value != "x" {
@@ -257,17 +259,12 @@ func TestPubSubUnsubscribe(t *testing.T) { //basic
   ck := MakeClerk(smh)
   defer cleanupClerk(ck)
 
-  ck.Subscribe("d")
-
-  ck.Put("d", "x")
-  v := <-ck.Receive
-  if v.Value != "x" {
-    t.Fatalf("Receive got the wrong value")
-  }
-
-  ck.Unsubscribe("d")
+  // Close receive channel
   close(ck.Receive)
+
+  // Souldn't receive anything now - will panic otherwise
   ck.Put("d", "x")
+
   time.Sleep(30 * time.Millisecond)
 
   fmt.Printf("  ... Passed\n")
@@ -277,25 +274,41 @@ func TestPubSubUnsubscribeJoin(t *testing.T) {
   smh, gids, ha, _, clean := setup("unsubjoinpubsub", false, false)
   defer clean()
 
-  fmt.Printf("Test: Unsubscribe Join Pub/Sub ...\n")
+  fmt.Printf("Test: Pub/Sub Join ...\n")
   mck := shardmaster.MakeClerk(smh)
   mck.Join(gids[0], ha[0])
 
   ck := MakeClerk(smh)
   defer cleanupClerk(ck)
 
+  // Subscribe from key
   ck.Subscribe("d")
 
+  // Put random keys
+  ck.Put("a", "x")
+  ck.Put("b", "x")
+  ck.Put("c", "x")
+
+  // Should receive changes to key=d
   ck.Put("d", "x")
   v := <-ck.Receive
   if v.Value != "x" {
     t.Fatalf("Receive got the wrong value")
   }
 
+  // New group join, old group leave
   mck.Join(gids[1], ha[1])
+  mck.Leave(gids[0])
+
+  // Unsubscribe from key
   ck.Unsubscribe("d")
+
+  // Close receive channel
   close(ck.Receive)
+
+  // Souldn't receive anything now - will panic otherwise
   ck.Put("d", "x")
+
   time.Sleep(30 * time.Millisecond)
 
   fmt.Printf("  ... Passed\n")
@@ -305,7 +318,7 @@ func TestPubSubUnsubscribeMove(t *testing.T) {
   smh, gids, ha, _, clean := setup("unsubmovepubsub", false, false)
   defer clean()
 
-  fmt.Printf("Test: Unsubscribe Multiple Move Pub/Sub ...\n")
+  fmt.Printf("Test: Pub/Sub Multiple Move ...\n")
   mck := shardmaster.MakeClerk(smh)
   for i := 0; i < len(gids); i++ {
     mck.Join(gids[i], ha[i])
@@ -318,14 +331,22 @@ func TestPubSubUnsubscribeMove(t *testing.T) {
 
   for i := 0; i < shardmaster.NShards; i++ {
     val := string('0' + i)
+
+    // Put random keys
+    ck.Put("a", "aax")
+    ck.Put("b", "bbx")
+    ck.Put("c", "ccx")
+
     ck.Put("d", val)
-    fmt.Println("Inputting value", val)
     v := <-ck.Receive
     if v.Value != val {
       t.Fatalf("Receive got the wrong value")
     }
     mck.Move(0, gids[rand.Int()%len(gids)])
   }
+
+  // Unsubscribe from key
+  ck.Unsubscribe("d")
 
   close(ck.Receive)
 
@@ -340,8 +361,15 @@ func TestPubSubUnsubscribeMove(t *testing.T) {
   fmt.Printf("  ... Passed\n")
 }
 
-//concurrent
-//concurrent, unreliable
+// TODO
+func TestPubSubConcurrent(t *testing.T) {
+  fmt.Printf("Test: Pub/Sub Concurrent ...\n")
+
+}
+
+func TestPubSubConcurrentUnreliable(t *testing.T) {
+  fmt.Printf("Test: Pub/Sub Concurrent Unreliable ...\n")
+}
 
 /*************************************************
 ******************ORIGINAL TESTS*****************
