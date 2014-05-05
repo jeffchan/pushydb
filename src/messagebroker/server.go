@@ -29,9 +29,9 @@ type MBServer struct {
   px         *paxos.Paxos
 
   lastAppliedSeq int
-  reqs           map[int]Err
-  notifications  map[int]*NotifyArgs // NotifyArgs.Seq -> Results
-  next           map[string]int      // Client address -> next to publish
+  reqs           map[int64]map[int]Err
+  notifications  map[int64]map[int]*NotifyArgs // NotifyArgs.Seq -> Results
+  next           map[int64]map[string]int      // Client address -> next to publish
 }
 
 func RandMTime() time.Duration {
@@ -65,6 +65,7 @@ func (mb *MBServer) Notify(args *NotifyArgs, reply *NotifyReply) error {
     Operation: Notify,
     Args:      *args,
     Seq:       seq,
+    GID:       args.GID,
   }
 
   err := mb.resolveOp(op)
@@ -78,10 +79,7 @@ func (mb *MBServer) Notify(args *NotifyArgs, reply *NotifyReply) error {
 func (mb *MBServer) resolveOp(op Op) Err {
   seq := mb.px.Max() + 1
 
-  mb.mu.Lock()
-  dup, exists := mb.reqs[op.Seq]
-  mb.mu.Unlock()
-
+  dup, exists := mb.getReqs(op.GID, op.Seq)
   if exists {
     return dup
   }
@@ -115,9 +113,7 @@ func (mb *MBServer) resolveOp(op Op) Err {
     time.Sleep(InitTimeout)
   }
 
-  mb.mu.Lock()
-  err, exists := mb.reqs[op.Seq]
-  mb.mu.Unlock()
+  err, exists := mb.getReqs(op.GID, op.Seq)
 
   mb.px.Done(seq)
 
@@ -126,13 +122,13 @@ func (mb *MBServer) resolveOp(op Op) Err {
 
 // Goroutine per client
 // Publishes notification in sequence order
-func (mb *MBServer) publish(client string, next int) {
+func (mb *MBServer) publish(client string, gid int64, next int) {
   for !mb.dead {
-    notification, exists := mb.notifications[next]
+    notification, exists := mb.getNotifications(gid, next)
 
     // Wait until next notification is available
     for !exists && !mb.dead {
-      notification, exists = mb.notifications[next]
+      notification, exists = mb.getNotifications(gid, next)
       time.Sleep(50 * time.Millisecond)
     }
 
@@ -156,15 +152,18 @@ func (mb *MBServer) publish(client string, next int) {
     next += 1
 
     mb.mu.Lock()
-    mb.next[client] = next
+    mb.next[gid][client] = next
     mb.mu.Unlock()
   }
 }
 
 func (mb *MBServer) applyNotify(args NotifyArgs) Err {
+  gid := args.GID
+  seq := args.Seq
+
   // We may receive these out of order
   // Cache the notification
-  mb.notifications[args.Seq] = &args
+  mb.setNotifications(gid, seq, &args)
 
   for client, sub := range args.Subscribers {
     if !sub {
@@ -172,10 +171,10 @@ func (mb *MBServer) applyNotify(args NotifyArgs) Err {
     }
 
     // Launch publish goroutine per client
-    _, exists := mb.next[client]
+    _, exists := mb.getNext(gid, client)
     if !exists {
-      mb.next[client] = args.Seq
-      go mb.publish(client, args.Seq)
+      mb.next[gid][client] = seq
+      go mb.publish(client, gid, seq)
     }
   }
   return OK
@@ -188,9 +187,7 @@ func (mb *MBServer) applyOp(op *Op) Err {
   }
 
   // Check if operation was already applied
-  mb.mu.Lock()
-  _, exists := mb.reqs[op.Seq]
-  mb.mu.Unlock()
+  _, exists := mb.getReqs(op.GID, op.Seq)
 
   if exists {
     return ErrAlreadyApplied
@@ -204,6 +201,60 @@ func (mb *MBServer) applyOp(op *Op) Err {
 
   // Should not reach this point
   return ErrInvalid
+}
+
+func (mb *MBServer) getReqs(gid int64, seq int) (Err, bool) {
+  mb.mu.Lock()
+  defer mb.mu.Unlock()
+
+  reqs, exists := mb.reqs[gid]
+  if !exists {
+    mb.reqs[gid] = make(map[int]Err)
+    return "",false
+  }
+
+  result, ok := reqs[seq]
+
+  return result, ok
+}
+
+func (mb *MBServer) setNotifications(gid int64, seq int, notification *NotifyArgs) {
+  mb.mu.Lock()
+  defer mb.mu.Unlock()
+
+  _, exists := mb.notifications[gid]
+  if !exists {
+    mb.notifications[gid] = make(map[int]*NotifyArgs)
+  }
+  mb.notifications[gid][seq] = notification
+}
+
+func (mb *MBServer) getNotifications(gid int64, seq int) (*NotifyArgs, bool) {
+  mb.mu.Lock()
+  defer mb.mu.Unlock()
+
+  notifications, exists := mb.notifications[gid]
+  if !exists {
+    mb.notifications[gid] = make(map[int]*NotifyArgs)
+    return nil,false
+  }
+
+  result, ok := notifications[seq]
+  return result, ok
+}
+
+func (mb *MBServer) getNext(gid int64, client string) (int, bool) {
+  mb.mu.Lock()
+  defer mb.mu.Unlock()
+
+  next, exists := mb.next[gid]
+  if !exists {
+    mb.next[gid] = make(map[string]int)
+    return 0,false
+  }
+
+  result, ok := next[client]
+  return result, ok
 }
 
 func (mb *MBServer) logSync() {
@@ -222,7 +273,7 @@ func (mb *MBServer) logSync() {
 
       mb.mu.Lock()
       if err == OK {
-        mb.reqs[op.Seq] = err
+        mb.reqs[op.GID][op.Seq] = err
       }
 
       mb.lastAppliedSeq += 1
@@ -270,9 +321,9 @@ func StartServer(servers []string, me int) *MBServer {
 
   mb := new(MBServer)
   mb.me = me
-  mb.reqs = make(map[int]Err)
-  mb.notifications = make(map[int]*NotifyArgs)
-  mb.next = make(map[string]int)
+  mb.reqs = make(map[int64]map[int]Err)
+  mb.notifications = make(map[int64]map[int]*NotifyArgs)
+  mb.next = make(map[int64]map[string]int)
   mb.lastAppliedSeq = -1
 
   rpcs := rpc.NewServer()

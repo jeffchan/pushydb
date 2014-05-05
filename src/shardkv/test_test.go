@@ -105,7 +105,7 @@ func setup(tag string, unreliable bool) ([]string, []int64, [][]string, [][]*Sha
 *******************EXPIRY TESTS******************
 *************************************************/
 
-func TestBasicExpiry(t *testing.T) {
+func TestExpiryBasic(t *testing.T) {
   smh, gids, ha, _, clean := setup("basicexpiry", false)
   defer clean()
 
@@ -142,7 +142,7 @@ func TestBasicExpiry(t *testing.T) {
 *******************PUBSUB TESTS******************
 *************************************************/
 
-func TestBasicPubSub(t *testing.T) {
+func TestPubSubBasic(t *testing.T) {
   smh, gids, ha, _, clean := setup("basicpubsub", false)
   defer clean()
 
@@ -165,7 +165,7 @@ func TestBasicPubSub(t *testing.T) {
   fmt.Printf("  ... Passed\n")
 }
 
-func TestJoinPubSub(t *testing.T) { //sometimes doesnt pass...
+func TestPubSubJoin(t *testing.T) { //sometimes doesnt pass...
   smh, gids, ha, _, clean := setup("joinpubsub", false)
   defer clean()
 
@@ -194,7 +194,7 @@ func TestJoinPubSub(t *testing.T) { //sometimes doesnt pass...
   fmt.Printf("  ... Passed\n")
 }
 
-func TestMovePubSub(t *testing.T) {
+func TestPubSubMove(t *testing.T) {
   smh, gids, ha, _, clean := setup("movepubsub", false)
   defer clean()
 
@@ -223,19 +223,19 @@ func TestMovePubSub(t *testing.T) {
   fmt.Printf("  ... Passed\n")
 }
 
-func TestConcurrentPubSub(t *testing.T) {
+func TestPubSubConcurrent(t *testing.T) {
   fmt.Printf("Test: Concurrent Pub/Sub ...\n")
-  
+
 }
 
-func TestConcurrentUnreliablePubSub(t *testing.T) {
+func TestPubSubConcurrentUnreliable(t *testing.T) {
   fmt.Printf("Test: Concurrent Unreliable Pub/Sub ...\n")
 }
 
 /*************************************************
 *****************UNSUBSCRIBE TESTS****************
 *************************************************/
-func TestUnsubscribePubSub(t *testing.T) { //basic
+func TestPubSubUnsubscribe(t *testing.T) { //basic
   smh, gids, ha, _, clean := setup("unsubpubsub", false)
   defer clean()
 
@@ -262,7 +262,7 @@ func TestUnsubscribePubSub(t *testing.T) { //basic
   fmt.Printf("  ... Passed\n")
 }
 
-func TestUnsubscribeJoinPubSub(t *testing.T) {
+func TestPubSubUnsubscribeJoin(t *testing.T) {
   smh, gids, ha, _, clean := setup("unsubjoinpubsub", false)
   defer clean()
 
@@ -290,7 +290,7 @@ func TestUnsubscribeJoinPubSub(t *testing.T) {
   fmt.Printf("  ... Passed\n")
 }
 
-func TestUnsubscribeMovePubSub(t *testing.T) {
+func TestPubSubUnsubscribeMove(t *testing.T) {
   smh, gids, ha, _, clean := setup("unsubmovepubsub", false)
   defer clean()
 
