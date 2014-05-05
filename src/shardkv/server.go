@@ -357,7 +357,6 @@ func (kv *ShardKV) applyPut(args PutArgs, timestamp time.Time) (string, Err) {
 
   kv.table[key] = entry
 
-  // TODO: don't need to publish if no subscribers
   // Publish
   kv.notifySeq += 1
   go kv.notify(kv.notifySeq, key, val, entry.Subscribers, args.ReqId)
