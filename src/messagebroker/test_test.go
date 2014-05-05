@@ -130,7 +130,6 @@ func TestMany(t *testing.T) {
   fmt.Printf(" ...Passed\n")
 }
 
-
 //test separate gid's and same sequence
 func TestGroups(t *testing.T) {
   _, mbservers, clean := setup("groups", false)
@@ -146,17 +145,16 @@ func TestGroups(t *testing.T) {
   npublish := 20
   ngroups := 4
 
-
   gids := make([]int, 0, npublish)
-  for i := 0; i< npublish; i++ {
-    gids = append(gids, i % ngroups)
+  for i := 0; i < npublish; i++ {
+    gids = append(gids, i%ngroups)
   }
 
   pubArgs := make([]PublishArgs, 0, npublish)
   for i := 0; i < npublish; i++ {
     pubArg := PublishArgs{
-      Key:   strconv.Itoa(gids[i]), //aka the group id's
-      Value: strconv.Itoa(i/ngroups), //aka the value of the sequence
+      Key:   strconv.Itoa(gids[i]),     //aka the group id's
+      Value: strconv.Itoa(i / ngroups), //aka the value of the sequence
       ReqId: "groups-" + strconv.Itoa(i+1),
     }
     pubArgs = append(pubArgs, pubArg)
@@ -166,7 +164,7 @@ func TestGroups(t *testing.T) {
   for i := 0; i < npublish; i++ {
     notifyArg := &NotifyArgs{
       GID:         int64(gids[i]),
-      Seq:         i/ngroups,
+      Seq:         i / ngroups,
       PublishArgs: pubArgs[i],
       Subscribers: map[string]bool{addr: true},
     }
@@ -180,22 +178,22 @@ func TestGroups(t *testing.T) {
   var reply NotifyReply
   for i := 0; i < ngroups; i++ {
     go func(gid int) {
-      for j:=0; j< npublish/ngroups; j++ {
+      for j := 0; j < npublish/ngroups; j++ {
         mbservers[rand.Int()%len(mbservers)].Notify(notifyArgs[j*ngroups+gid], &reply)
       }
     }(i)
   }
 
   lasts := []int{-1, -1, -1, -1}
-  for i:=0; i < npublish; i++ {
+  for i := 0; i < npublish; i++ {
     pub := <-publications
     index, _ := strconv.Atoi(pub.Key)
     value, _ := strconv.Atoi(pub.Value)
-    if lasts[index]+1 !=  value {
+    if lasts[index]+1 != value {
       t.Fatalf("Wrong publication; expected key/value %s:%s, got key/value %s:%s", index, lasts[index]+1, index, value)
     }
     lasts[index] += 1
   }
-  
+
   fmt.Printf(" ...Passed\n")
 }
