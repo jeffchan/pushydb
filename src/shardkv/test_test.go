@@ -184,7 +184,10 @@ func TestSubscribeJoin(t *testing.T) { //sometimes doesnt pass...
     t.Fatalf("Receive got the wrong value")
   }
 
+  // New group join, old group leave
   mck.Join(gids[1], ha[1])
+  mck.Leave(gids[0])
+
   ck.Put("d", "y")
   v = <-ck.Receive
   if v.Value != "y" {
@@ -245,17 +248,25 @@ func TestUnsubscribeBasic(t *testing.T) { //basic
   ck := MakeClerk(smh)
   defer cleanupClerk(ck)
 
+  // Subscribe from key
   ck.Subscribe("d")
 
+  // Should receive changes to key=d
   ck.Put("d", "x")
   v := <-ck.Receive
   if v.Value != "x" {
     t.Fatalf("Receive got the wrong value")
   }
 
+  // Unsubscribe from key
   ck.Unsubscribe("d")
+
+  // Close receive channel
   close(ck.Receive)
+
+  // Souldn't receive anything now - will panic otherwise
   ck.Put("d", "x")
+
   time.Sleep(30 * time.Millisecond)
 
   fmt.Printf("  ... Passed\n")
@@ -272,19 +283,27 @@ func TestUnsubscribeJoin(t *testing.T) {
   ck := MakeClerk(smh)
   defer cleanupClerk(ck)
 
+  // Subscribe from key
   ck.Subscribe("d")
 
+  // Should receive changes to key=d
   ck.Put("d", "x")
   v := <-ck.Receive
   if v.Value != "x" {
     t.Fatalf("Receive got the wrong value")
   }
 
+  // New group join, old group leave
   mck.Join(gids[1], ha[1])
+  mck.Leave(gids[0])
+
+  // Unsubscribe from key
   ck.Unsubscribe("d")
 
+  // Close receive channel
   close(ck.Receive)
 
+  // Souldn't receive anything now - will panic otherwise
   ck.Put("d", "x")
 
   time.Sleep(30 * time.Millisecond)
