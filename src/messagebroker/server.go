@@ -131,7 +131,7 @@ func (mb *MBServer) publish(client string, next int) {
     notification, exists := mb.notifications[next]
 
     // Wait until next notification is available
-    for !exists {
+    for !exists && !mb.dead {
       notification, exists = mb.notifications[next]
       time.Sleep(50 * time.Millisecond)
     }
