@@ -105,7 +105,7 @@ func setup(tag string, unreliable bool) ([]string, []int64, [][]string, [][]*Sha
 *******************EXPIRY TESTS******************
 *************************************************/
 
-func TestBasicExpiry(t *testing.T) {
+func TestExpiryBasic(t *testing.T) {
   smh, gids, ha, _, clean := setup("basicexpiry", false)
   defer clean()
 
@@ -142,7 +142,7 @@ func TestBasicExpiry(t *testing.T) {
 *******************PUBSUB TESTS******************
 *************************************************/
 
-func TestBasicPubSub(t *testing.T) {
+func TestPubSubBasic(t *testing.T) {
   smh, gids, ha, _, clean := setup("basicpubsub", false)
   defer clean()
 
@@ -165,7 +165,7 @@ func TestBasicPubSub(t *testing.T) {
   fmt.Printf("  ... Passed\n")
 }
 
-func TestJoinPubSub(t *testing.T) { //sometimes doesnt pass...
+func TestPubSubJoin(t *testing.T) { //sometimes doesnt pass...
   smh, gids, ha, _, clean := setup("joinpubsub", false)
   defer clean()
 
@@ -194,7 +194,7 @@ func TestJoinPubSub(t *testing.T) { //sometimes doesnt pass...
   fmt.Printf("  ... Passed\n")
 }
 
-func TestMovePubSub(t *testing.T) {
+func TestPubSubMove(t *testing.T) {
   smh, gids, ha, _, clean := setup("movepubsub", false)
   defer clean()
 
@@ -223,19 +223,19 @@ func TestMovePubSub(t *testing.T) {
   fmt.Printf("  ... Passed\n")
 }
 
-func TestConcurrentPubSub(t *testing.T) {
+func TestPubSubConcurrent(t *testing.T) {
   fmt.Printf("Test: Concurrent Pub/Sub ...\n")
 
 }
 
-func TestConcurrentUnreliablePubSub(t *testing.T) {
+func TestPubSubConcurrentUnreliable(t *testing.T) {
   fmt.Printf("Test: Concurrent Unreliable Pub/Sub ...\n")
 }
 
 /*************************************************
 *****************UNSUBSCRIBE TESTS****************
 *************************************************/
-func TestUnsubscribePubSub(t *testing.T) { //basic
+func TestPubSubUnsubscribe(t *testing.T) { //basic
   smh, gids, ha, _, clean := setup("unsubpubsub", false)
   defer clean()
 
@@ -262,7 +262,7 @@ func TestUnsubscribePubSub(t *testing.T) { //basic
   fmt.Printf("  ... Passed\n")
 }
 
-func TestUnsubscribeJoinPubSub(t *testing.T) {
+func TestPubSubUnsubscribeJoin(t *testing.T) {
   smh, gids, ha, _, clean := setup("unsubjoinpubsub", false)
   defer clean()
 
@@ -290,7 +290,7 @@ func TestUnsubscribeJoinPubSub(t *testing.T) {
   fmt.Printf("  ... Passed\n")
 }
 
-func TestUnsubscribeMovePubSub(t *testing.T) {
+func TestPubSubUnsubscribeMove(t *testing.T) {
   smh, gids, ha, _, clean := setup("unsubmovepubsub", false)
   defer clean()
 
@@ -618,8 +618,8 @@ func TestPersistenceDiskOkay(t *testing.T) {
   }
 
   // are keys still there after kill and restart?
-  randomGroup := rand.Intn(length(sa))
-  randomSKV := rand.Intn(length(sa[randomGroup]))
+  randomGroup := rand.Intn(len(sa))
+  randomSKV := rand.Intn(len(sa[randomGroup]))
   mb := sa[randomGroup][randomSKV].mb
   sa[randomGroup][randomSKV].kill()
   time.Sleep(1 * time.Second)
@@ -627,9 +627,9 @@ func TestPersistenceDiskOkay(t *testing.T) {
   time.Sleep(2 * time.Second)
   for i := 0; i < len(keys); i++ {
     v := sa[randomGroup][randomSKV].table[keys[i]]
-    if v != vals[i] {
+    if v.Value != vals[i] {
       t.Fatalf("killed and restarted; wrong value; g=%v k=%v wanted=%v got=%v",
-        g, keys[i], vals[i], v)
+        randomGroup, keys[i], vals[i], v)
     }
     // vals[i] = strconv.Itoa(rand.Int())
     // ck.Put(keys[i], vals[i])
@@ -638,9 +638,9 @@ func TestPersistenceDiskOkay(t *testing.T) {
   fmt.Printf("  ... Passed\n")
 }
 
-func TestPersistenceDiskLoss(t *testing.T) {
-  smh, gids, ha, _, clean := setup("persistencebad", false)
-  defer clean()
+// func TestPersistenceDiskLoss(t *testing.T) {
+//   smh, gids, ha, _, clean := setup("persistencebad", false)
+//   defer clean()
 
-  fmt.Printf("Test: Server recovers after failure and total disk loss...\n")
-}
+//   fmt.Printf("Test: Server recovers after failure and total disk loss...\n")
+// }

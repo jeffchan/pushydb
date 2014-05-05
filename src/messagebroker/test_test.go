@@ -6,6 +6,7 @@ import "os"
 import "fmt"
 import "time"
 import "runtime"
+import "math/rand"
 
 var _ = time.Millisecond
 
@@ -76,6 +77,51 @@ func TestBasic(t *testing.T) {
 
   if pub != pubArgs {
     t.Fatalf("Wrong publication; expected %s, got %s", pubArgs, pub)
+  }
+
+  fmt.Printf(" ...Passed\n")
+}
+
+func TestMany(t *testing.T) {
+  _, mbservers, clean := setup("many", false)
+  defer clean()
+
+  fmt.Printf("Test: Many notify -> publish...\n")
+
+  addr := port("many-clerk", 0)
+  publications := make(chan PublishArgs)
+  clerk := MakeClerk(addr, publications)
+  defer cleanupClerk(clerk)
+
+  npublish := 10
+
+  pubArgs := make([]PublishArgs, 0, npublish)
+  for i := 0; i < npublish; i++ {
+    pubArg := PublishArgs{
+      Key:   "a",
+      Value: strconv.Itoa(i),
+      ReqId: "many-" + strconv.Itoa(i+1),
+    }
+    pubArgs = append(pubArgs, pubArg)
+  }
+
+  notifyArgs := make([]*NotifyArgs, 0, npublish)
+  for i := 0; i < npublish; i++ {
+    notifyArg := &NotifyArgs{
+      Seq:         i + 1,
+      PublishArgs: pubArgs[i],
+      Subscribers: map[string]bool{addr: true},
+    }
+    notifyArgs = append(notifyArgs, notifyArg)
+  }
+
+  var reply NotifyReply
+  for i := 0; i < npublish; i++ {
+    mbservers[rand.Int()%len(mbservers)].Notify(notifyArgs[i], &reply)
+    pub := <-publications
+    if pub != pubArgs[i] {
+      t.Fatalf("Wrong publication; expected %s, got %s", pubArgs[i], pub)
+    }
   }
 
   fmt.Printf(" ...Passed\n")

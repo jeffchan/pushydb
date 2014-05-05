@@ -91,6 +91,9 @@ func nrand() int64 {
 }
 
 func (ck *Clerk) Publish(args *PublishArgs, reply *PublishReply) error {
+  ck.mu.Lock()
+  defer ck.mu.Unlock()
+
   reqId := args.ReqId
   _, ok := ck.dups[reqId]
   if !ok {
