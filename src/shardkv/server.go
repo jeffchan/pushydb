@@ -223,6 +223,7 @@ func (kv *ShardKV) notify(
   reqId string) {
 
   args := &messagebroker.NotifyArgs{
+    GID: kv.gid,
     Seq: seq,
     PublishArgs: messagebroker.PublishArgs{
       Key:   key,

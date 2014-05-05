@@ -105,7 +105,7 @@ func setup(tag string, unreliable bool) ([]string, []int64, [][]string, [][]*Sha
 *******************EXPIRY TESTS******************
 *************************************************/
 
-func TestBasicExpiry(t *testing.T) {
+func TestExpiryBasic(t *testing.T) {
   smh, gids, ha, _, clean := setup("basicexpiry", false)
   defer clean()
 
@@ -142,7 +142,7 @@ func TestBasicExpiry(t *testing.T) {
 *******************PUBSUB TESTS******************
 *************************************************/
 
-func TestBasicPubSub(t *testing.T) {
+func TestPubSubBasic(t *testing.T) {
   smh, gids, ha, _, clean := setup("basicpubsub", false)
   defer clean()
 
@@ -165,7 +165,7 @@ func TestBasicPubSub(t *testing.T) {
   fmt.Printf("  ... Passed\n")
 }
 
-func TestJoinPubSub(t *testing.T) { //sometimes doesnt pass...
+func TestPubSubJoin(t *testing.T) { //sometimes doesnt pass...
   smh, gids, ha, _, clean := setup("joinpubsub", false)
   defer clean()
 
@@ -194,7 +194,7 @@ func TestJoinPubSub(t *testing.T) { //sometimes doesnt pass...
   fmt.Printf("  ... Passed\n")
 }
 
-func TestMovePubSub(t *testing.T) {
+func TestPubSubMove(t *testing.T) {
   smh, gids, ha, _, clean := setup("movepubsub", false)
   defer clean()
 
@@ -223,19 +223,19 @@ func TestMovePubSub(t *testing.T) {
   fmt.Printf("  ... Passed\n")
 }
 
-func TestConcurrentPubSub(t *testing.T) {
+func TestPubSubConcurrent(t *testing.T) {
   fmt.Printf("Test: Concurrent Pub/Sub ...\n")
-  
+
 }
 
-func TestConcurrentUnreliablePubSub(t *testing.T) {
+func TestPubSubConcurrentUnreliable(t *testing.T) {
   fmt.Printf("Test: Concurrent Unreliable Pub/Sub ...\n")
 }
 
 /*************************************************
 *****************UNSUBSCRIBE TESTS****************
 *************************************************/
-func TestUnsubscribePubSub(t *testing.T) { //basic
+func TestPubSubUnsubscribe(t *testing.T) { //basic
   smh, gids, ha, _, clean := setup("unsubpubsub", false)
   defer clean()
 
@@ -262,7 +262,7 @@ func TestUnsubscribePubSub(t *testing.T) { //basic
   fmt.Printf("  ... Passed\n")
 }
 
-func TestUnsubscribeJoinPubSub(t *testing.T) {
+func TestPubSubUnsubscribeJoin(t *testing.T) {
   smh, gids, ha, _, clean := setup("unsubjoinpubsub", false)
   defer clean()
 
@@ -290,7 +290,7 @@ func TestUnsubscribeJoinPubSub(t *testing.T) {
   fmt.Printf("  ... Passed\n")
 }
 
-func TestUnsubscribeMovePubSub(t *testing.T) {
+func TestPubSubUnsubscribeMove(t *testing.T) {
   smh, gids, ha, _, clean := setup("unsubmovepubsub", false)
   defer clean()
 
@@ -585,4 +585,62 @@ func TestConcurrentUnreliable(t *testing.T) {
   fmt.Printf("Test: Concurrent Put/Get/Move (unreliable) ...\n")
   doConcurrent(t, true)
   fmt.Printf("  ... Passed\n")
+}
+
+func TestPersistenceDiskOkay(t *testing.T) {
+  smh, gids, ha, sa, clean := setup("persistencegood", false)
+  defer clean()
+
+  fmt.Printf("Test: Server recovers after failure and no disk loss...\n")
+
+  mck := shardmaster.MakeClerk(smh)
+  mck.Join(gids[0], ha[0])
+
+  ck := MakeClerk(smh)
+  defer cleanupClerk(ck)
+
+  ck.Put("a", "x")
+  v := ck.PutHash("a", "b")
+  if v != "x" {
+    t.Fatalf("Puthash got wrong value")
+  }
+  ov := NextValue("x", "b")
+  if ck.Get("a") != ov {
+    t.Fatalf("Get got wrong value")
+  }
+
+  keys := make([]string, 10)
+  vals := make([]string, len(keys))
+  for i := 0; i < len(keys); i++ {
+    keys[i] = strconv.Itoa(rand.Int())
+    vals[i] = strconv.Itoa(rand.Int())
+    ck.Put(keys[i], vals[i])
+  }
+
+  // are keys still there after kill and restart?
+  randomGroup := rand.Intn(length(sa))
+  randomSKV := rand.Intn(length(sa[randomGroup]))
+  mb := sa[randomGroup][randomSKV].mb
+  sa[randomGroup][randomSKV].kill()
+  time.Sleep(1 * time.Second)
+  sa[randomGroup][randomSKV] = StartServer(gids[randomGroup], smh, ha[randomGroup], randomSKV, mb)
+  time.Sleep(2 * time.Second)
+  for i := 0; i < len(keys); i++ {
+    v := sa[randomGroup][randomSKV].table[keys[i]]
+    if v != vals[i] {
+      t.Fatalf("killed and restarted; wrong value; g=%v k=%v wanted=%v got=%v",
+        g, keys[i], vals[i], v)
+    }
+    // vals[i] = strconv.Itoa(rand.Int())
+    // ck.Put(keys[i], vals[i])
+  }
+
+  fmt.Printf("  ... Passed\n")
+}
+
+func TestPersistenceDiskLoss(t *testing.T) {
+  smh, gids, ha, _, clean := setup("persistencebad", false)
+  defer clean()
+
+  fmt.Printf("Test: Server recovers after failure and total disk loss...\n")
 }
