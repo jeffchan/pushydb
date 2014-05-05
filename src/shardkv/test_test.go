@@ -142,8 +142,8 @@ func TestExpiryBasic(t *testing.T) {
 *******************PUBSUB TESTS******************
 *************************************************/
 
-func TestPubSubBasic(t *testing.T) {
-  smh, gids, ha, _, clean := setup("basicpubsub", false)
+func TestSubscribeBasic(t *testing.T) {
+  smh, gids, ha, _, clean := setup("subscribe-basic", false)
   defer clean()
 
   fmt.Printf("Test: Basic Pub/Sub ...\n")
@@ -165,8 +165,8 @@ func TestPubSubBasic(t *testing.T) {
   fmt.Printf("  ... Passed\n")
 }
 
-func TestPubSubJoin(t *testing.T) { //sometimes doesnt pass...
-  smh, gids, ha, _, clean := setup("joinpubsub", false)
+func TestSubscribeJoin(t *testing.T) { //sometimes doesnt pass...
+  smh, gids, ha, _, clean := setup("subscribe-join", false)
   defer clean()
 
   fmt.Printf("Test: Join Pub/Sub ...\n")
@@ -194,8 +194,8 @@ func TestPubSubJoin(t *testing.T) { //sometimes doesnt pass...
   fmt.Printf("  ... Passed\n")
 }
 
-func TestPubSubMove(t *testing.T) {
-  smh, gids, ha, _, clean := setup("movepubsub", false)
+func TestSubscribeMove(t *testing.T) {
+  smh, gids, ha, _, clean := setup("subscribe-move", false)
   defer clean()
 
   fmt.Printf("Test: Multiple Move Pub/Sub ...\n")
@@ -212,7 +212,6 @@ func TestPubSubMove(t *testing.T) {
   for i := 0; i < shardmaster.NShards; i++ {
     val := string('0' + i)
     ck.Put("d", val)
-    fmt.Println("Inputting value", val)
     v := <-ck.Receive
     if v.Value != val {
       t.Fatalf("Receive got the wrong value")
@@ -223,20 +222,20 @@ func TestPubSubMove(t *testing.T) {
   fmt.Printf("  ... Passed\n")
 }
 
-func TestPubSubConcurrent(t *testing.T) {
+func TestSubscribeConcurrent(t *testing.T) {
   fmt.Printf("Test: Concurrent Pub/Sub ...\n")
 
 }
 
-func TestPubSubConcurrentUnreliable(t *testing.T) {
+func TestSubscribeConcurrentUnreliable(t *testing.T) {
   fmt.Printf("Test: Concurrent Unreliable Pub/Sub ...\n")
 }
 
 /*************************************************
 *****************UNSUBSCRIBE TESTS****************
 *************************************************/
-func TestPubSubUnsubscribe(t *testing.T) { //basic
-  smh, gids, ha, _, clean := setup("unsubpubsub", false)
+func TestUnsubscribeBasic(t *testing.T) { //basic
+  smh, gids, ha, _, clean := setup("unsub-basic", false)
   defer clean()
 
   fmt.Printf("Test: Unsubscribe Pub/Sub ...\n")
@@ -262,8 +261,8 @@ func TestPubSubUnsubscribe(t *testing.T) { //basic
   fmt.Printf("  ... Passed\n")
 }
 
-func TestPubSubUnsubscribeJoin(t *testing.T) {
-  smh, gids, ha, _, clean := setup("unsubjoinpubsub", false)
+func TestUnsubscribeJoin(t *testing.T) {
+  smh, gids, ha, _, clean := setup("unsub-join", false)
   defer clean()
 
   fmt.Printf("Test: Unsubscribe Join Pub/Sub ...\n")
@@ -283,15 +282,18 @@ func TestPubSubUnsubscribeJoin(t *testing.T) {
 
   mck.Join(gids[1], ha[1])
   ck.Unsubscribe("d")
+
   close(ck.Receive)
+
   ck.Put("d", "x")
+
   time.Sleep(30 * time.Millisecond)
 
   fmt.Printf("  ... Passed\n")
 }
 
-func TestPubSubUnsubscribeMove(t *testing.T) {
-  smh, gids, ha, _, clean := setup("unsubmovepubsub", false)
+func TestUnsubscribeMove(t *testing.T) {
+  smh, gids, ha, _, clean := setup("unsub-move", false)
   defer clean()
 
   fmt.Printf("Test: Unsubscribe Multiple Move Pub/Sub ...\n")
@@ -308,7 +310,6 @@ func TestPubSubUnsubscribeMove(t *testing.T) {
   for i := 0; i < shardmaster.NShards; i++ {
     val := string('0' + i)
     ck.Put("d", val)
-    fmt.Println("Inputting value", val)
     v := <-ck.Receive
     if v.Value != val {
       t.Fatalf("Receive got the wrong value")
