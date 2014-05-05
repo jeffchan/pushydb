@@ -191,6 +191,11 @@ func TestPubSubJoin(t *testing.T) {
   // Subscribe from key
   ck.Subscribe("d")
 
+  // Put random keys
+  ck.Put("a", "x")
+  ck.Put("b", "x")
+  ck.Put("c", "x")
+
   // Should receive changes to key=d
   ck.Put("d", "x")
   v := <-ck.Receive
@@ -233,6 +238,12 @@ func TestPubSubMove(t *testing.T) {
 
   for i := 0; i < shardmaster.NShards; i++ {
     val := string('0' + i)
+
+    // Put random keys
+    ck.Put("a", "aax")
+    ck.Put("b", "bbx")
+    ck.Put("c", "ccx")
+
     ck.Put("d", val)
     v := <-ck.Receive
     if v.Value != val {
