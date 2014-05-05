@@ -129,3 +129,71 @@ func TestMany(t *testing.T) {
 
   fmt.Printf(" ...Passed\n")
 }
+
+
+//test separate gid's and same sequence
+func TestGroups(t *testing.T) {
+  _, mbservers, clean := setup("groups", false)
+  defer clean()
+
+  fmt.Printf("Test: Many different groups notify -> publish...\n")
+
+  addr := port("groups-clerk", 0)
+  publications := make(chan PublishArgs)
+  clerk := MakeClerk(addr, publications)
+  defer cleanupClerk(clerk)
+
+  npublish := 20
+  ngroups := 4
+
+
+  gids = make([]int, 0, npublish)
+  for i := 0; i< npublish; i++ {
+    gids = append(gids, i % ngroups)
+  }
+
+  pubArgs := make([]PublishArgs, 0, npublish)
+  for i := 0; i < npublish; i++ {
+    pubArg := PublishArgs{
+      Key:   strconv.Itoa(gids[i]), //aka the group id's
+      Value: strconv.Itoa(i/ngroups), //aka the value of the sequence
+      ReqId: "groups-" + strconv.Itoa(i+1),
+    }
+    pubArgs = append(pubArgs, pubArg)
+  }
+
+  notifyArgs := make([]*NotifyArgs, 0, npublish)
+  for i := 0; i < npublish; i++ {
+    notifyArg := &NotifyArgs{
+      GID:         gids[i],
+      Seq:         i/ngroups,
+      PublishArgs: pubArgs[i],
+      Subscribers: map[string]bool{addr: true},
+    }
+    notifyArgs = append(notifyArgs, notifyArg)
+  }
+  //creates gids to be                     [0 1 2 3 0 1 2 3 0 1 2 3 0 1 2 3 0 1 2 3]
+  //creates publish args to have keys      [0 1 2 3 ... ]
+  //creates publish args to have values    [0 0 0 0 1 1 1 1 ... ]
+  //creates notify args to have sequences  [0 0 0 0 1 1 1 1 2 2 2 2 3 3 3 3 4 4 4 4]
+
+  var reply NotifyReply
+  for i := 0; i < ngroups; i++ {
+    go func(gid int) {
+      for j:=0; j< npublish/ngroups; j++ {
+        mbservers[rand.Int()%len(mbservers)].Notify(notifyArgs[j*ngroups+gid], &reply)
+      }
+    }(i)
+  }
+
+  lasts := []int{-1 -1 -1 -1}
+  for i:=0; i < npublish; i++ {
+    pub := <-publications
+    index := strconv.Itoa(pub.Key)
+    if lasts[index]+1 != pub.Value {
+      t.Fatalf("Wrong publication; expected key %s: value %s, got key %s: value %s", index, lasts[index]+1, index, pub.Value)
+    }
+  }
+  
+  fmt.Printf(" ...Passed\n")
+}
