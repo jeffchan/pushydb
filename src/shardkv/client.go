@@ -64,7 +64,7 @@ func (ck *Clerk) Kill() {
 
 //
 // Subscribe to changes to a given key
-// Recieve changes on Receive channel
+// Receive changes on Receive channel
 // Set unsub = true to unsubscribe
 //
 func (ck *Clerk) SubscribeExt(key string, unsub bool) {
