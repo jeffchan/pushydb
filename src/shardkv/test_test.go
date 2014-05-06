@@ -378,14 +378,14 @@ func doConcurrent(t *testing.T, unreliable bool, subscribe bool) {
 }
 
 func TestConcurrent(t *testing.T) {
-  fmt.Printf("Test: Concurrent Put/Get/Move ...\n")
-  doConcurrent(t, false, false)
+  fmt.Printf("Test: Concurrent Put/Get/Move + Pub/Sub ...\n")
+  doConcurrent(t, false, true)
   fmt.Printf("  ... Passed\n")
 }
 
 func TestConcurrentUnreliable(t *testing.T) {
-  fmt.Printf("Test: Concurrent Put/Get/Move (unreliable) ...\n")
-  doConcurrent(t, true, false)
+  fmt.Printf("Test: Concurrent Put/Get/Move + Pub/Sub (unreliable) ...\n")
+  doConcurrent(t, true, true)
   fmt.Printf("  ... Passed\n")
 }
 
@@ -556,18 +556,6 @@ func TestPubSubMove(t *testing.T) {
 
   time.Sleep(30 * time.Millisecond)
 
-  fmt.Printf("  ... Passed\n")
-}
-
-func TestPubSubConcurrent(t *testing.T) {
-  fmt.Printf("Test: Pub/Sub Concurrent ...\n")
-  doConcurrent(t, false, true)
-  fmt.Printf("  ... Passed\n")
-}
-
-func TestPubSubConcurrentUnreliable(t *testing.T) {
-  fmt.Printf("Test: Pub/Sub Concurrent Unreliable ...\n")
-  doConcurrent(t, true, true)
   fmt.Printf("  ... Passed\n")
 }
 
