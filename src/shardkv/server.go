@@ -359,7 +359,7 @@ func (kv *ShardKV) applyPut(args PutArgs, timestamp time.Time) (string, Err) {
 
   // Publish
   kv.notifySeq += 1
-  go kv.notify(kv.notifySeq, key, val, entry.Subscribers, args.ReqId)
+  go kv.notify(kv.notifySeq, key, newval, entry.Subscribers, args.ReqId)
 
   return oldval, OK
 }
