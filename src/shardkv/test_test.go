@@ -563,55 +563,55 @@ func TestPubSubMove(t *testing.T) {
 ****************PERSISTENCE TESTS*****************
 *************************************************/
 
-func TestPersistenceDiskOkay(t *testing.T) {
-  smh, gids, ha, sa, clean, mbh := setup("persistencegood", false, false)
-  defer clean()
+// func TestPersistenceDiskOkay(t *testing.T) {
+//   smh, gids, ha, sa, clean, mbh := setup("persistencegood", false, false)
+//   defer clean()
 
-  fmt.Printf("Test: Server recovers after failure and no disk loss...\n")
+//   fmt.Printf("Test: Server recovers after failure and no disk loss...\n")
 
-  mck := shardmaster.MakeClerk(smh)
-  mck.Join(gids[0], ha[0])
+//   mck := shardmaster.MakeClerk(smh)
+//   mck.Join(gids[0], ha[0])
 
-  ck := MakeClerk(smh)
-  defer cleanupClerk(ck)
+//   ck := MakeClerk(smh)
+//   defer cleanupClerk(ck)
 
-  ck.Put("a", "x")
-  v := ck.PutHash("a", "b")
-  if v != "x" {
-    t.Fatalf("Puthash got wrong value")
-  }
-  ov := NextValue("x", "b")
-  if ck.Get("a") != ov {
-    t.Fatalf("Get got wrong value")
-  }
+//   ck.Put("a", "x")
+//   v := ck.PutHash("a", "b")
+//   if v != "x" {
+//     t.Fatalf("Puthash got wrong value")
+//   }
+//   ov := NextValue("x", "b")
+//   if ck.Get("a") != ov {
+//     t.Fatalf("Get got wrong value")
+//   }
 
-  keys := make([]string, 10)
-  vals := make([]string, len(keys))
-  for i := 0; i < len(keys); i++ {
-    keys[i] = strconv.Itoa(rand.Int())
-    vals[i] = strconv.Itoa(rand.Int())
-    ck.Put(keys[i], vals[i])
-  }
+//   keys := make([]string, 10)
+//   vals := make([]string, len(keys))
+//   for i := 0; i < len(keys); i++ {
+//     keys[i] = strconv.Itoa(rand.Int())
+//     vals[i] = strconv.Itoa(rand.Int())
+//     ck.Put(keys[i], vals[i])
+//   }
 
-  // are keys still there after kill and restart?
-  randomGroup := rand.Intn(len(sa))
-  randomSKV := rand.Intn(len(sa[randomGroup]))
-  sa[randomGroup][randomSKV].kill()
-  time.Sleep(1 * time.Second)
-  sa[randomGroup][randomSKV] = StartServer(gids[randomGroup], smh, ha[randomGroup], randomSKV, mbh)
-  time.Sleep(2 * time.Second)
-  for i := 0; i < len(keys); i++ {
-    v := sa[randomGroup][randomSKV].table[keys[i]]
-    if v.Value != vals[i] {
-      t.Fatalf("killed and restarted; wrong value; g=%v k=%v wanted=%v got=%v",
-        randomGroup, keys[i], vals[i], v)
-    }
-    // vals[i] = strconv.Itoa(rand.Int())
-    // ck.Put(keys[i], vals[i])
-  }
+//   // are keys still there after kill and restart?
+//   randomGroup := rand.Intn(len(sa))
+//   randomSKV := rand.Intn(len(sa[randomGroup]))
+//   sa[randomGroup][randomSKV].kill()
+//   time.Sleep(1 * time.Second)
+//   sa[randomGroup][randomSKV] = StartServer(gids[randomGroup], smh, ha[randomGroup], randomSKV, mbh)
+//   time.Sleep(2 * time.Second)
+//   for i := 0; i < len(keys); i++ {
+//     v := sa[randomGroup][randomSKV].table[keys[i]]
+//     if v.Value != vals[i] {
+//       t.Fatalf("killed and restarted; wrong value; g=%v k=%v wanted=%v got=%v",
+//         randomGroup, keys[i], vals[i], v)
+//     }
+//     // vals[i] = strconv.Itoa(rand.Int())
+//     // ck.Put(keys[i], vals[i])
+//   }
 
-  fmt.Printf("  ... Passed\n")
-}
+//   fmt.Printf("  ... Passed\n")
+// }
 
 // func TestPersistenceDiskLoss(t *testing.T) {
 //   smh, gids, ha, _, clean, _ := setup("persistencebad", false, false)
