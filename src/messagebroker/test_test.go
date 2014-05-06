@@ -62,9 +62,10 @@ func TestBasic(t *testing.T) {
   defer cleanupClerk(clerk)
 
   pubArgs := PublishArgs{
-    Key:   "a",
-    Value: "x",
-    ReqId: "basic",
+    Key:        "a",
+    Value:      "x",
+    ReqId:      "basic",
+    Expiration: time.Now(),
   }
   args := &NotifyArgs{
     KeySeq:      0,
@@ -99,9 +100,10 @@ func TestMany(t *testing.T) {
   pubArgs := make([]PublishArgs, 0, npublish)
   for i := 0; i < npublish; i++ {
     pubArg := PublishArgs{
-      Key:   "a",
-      Value: strconv.Itoa(i),
-      ReqId: "many-" + strconv.Itoa(i+1),
+      Key:        "a",
+      Value:      strconv.Itoa(i),
+      ReqId:      "many-" + strconv.Itoa(i+1),
+      Expiration: time.Now(),
     }
     pubArgs = append(pubArgs, pubArg)
   }
@@ -151,9 +153,10 @@ func TestGroups(t *testing.T) {
   pubArgs := make([]PublishArgs, 0, npublish)
   for i := 0; i < npublish; i++ {
     pubArg := PublishArgs{
-      Key:   strconv.Itoa(gids[i]),     // aka the group id's
-      Value: strconv.Itoa(i / ngroups), // aka the value of the sequence
-      ReqId: "groups-" + strconv.Itoa(i+1),
+      Key:        strconv.Itoa(gids[i]),     // aka the group id's
+      Value:      strconv.Itoa(i / ngroups), // aka the value of the sequence
+      ReqId:      "groups-" + strconv.Itoa(i+1),
+      Expiration: time.Now(),
     }
     pubArgs = append(pubArgs, pubArg)
   }
