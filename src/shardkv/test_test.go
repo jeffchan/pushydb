@@ -55,7 +55,7 @@ func cleanup(sa [][]*ShardKV) {
   }
 }
 
-func setup(tag string, unreliable bool, sudden bool) ([]string, []int64, [][]string, [][]*ShardKV, func()) {
+func setup(tag string, unreliable bool, sudden bool) ([]string, []int64, [][]string, [][]*ShardKV, func(), []string) {
   runtime.GOMAXPROCS(4)
 
   const nmasters = 3
@@ -102,14 +102,14 @@ func setup(tag string, unreliable bool, sudden bool) ([]string, []int64, [][]str
       //   }
       //   _, err = process.Wait(0)
       // } else {
-      sa[i][j] = StartServer(gids[i], smh, ha[i], j, mbh[i])
+      sa[i][j] = StartServer(gids[i], smh, ha[i], j, mbh)
       sa[i][j].unreliable = unreliable
       // }
     }
   }
 
   clean := func() { cleanup(sa); mcleanup(sma); mbcleanup(mba) }
-  return smh, gids, ha, sa, clean
+  return smh, gids, ha, sa, clean, mbh
 }
 
 /*************************************************
@@ -117,7 +117,7 @@ func setup(tag string, unreliable bool, sudden bool) ([]string, []int64, [][]str
 *************************************************/
 
 func TestBasic(t *testing.T) {
-  smh, gids, ha, _, clean := setup("basic", false, false)
+  smh, gids, ha, _, clean, _ := setup("basic", false, false)
   defer clean()
 
   fmt.Printf("Test: Basic Join/Leave ...\n")
@@ -180,7 +180,7 @@ func TestBasic(t *testing.T) {
 }
 
 func TestMove(t *testing.T) {
-  smh, gids, ha, _, clean := setup("move", false, false)
+  smh, gids, ha, _, clean, _ := setup("move", false, false)
   defer clean()
 
   fmt.Printf("Test: Shards really move ...\n")
@@ -240,7 +240,7 @@ func TestMove(t *testing.T) {
 }
 
 func TestLimp(t *testing.T) {
-  smh, gids, ha, sa, clean := setup("limp", false, false)
+  smh, gids, ha, sa, clean, _ := setup("limp", false, false)
   defer clean()
 
   fmt.Printf("Test: Reconfiguration with some dead replicas ...\n")
@@ -305,7 +305,7 @@ func TestLimp(t *testing.T) {
 }
 
 func doConcurrent(t *testing.T, unreliable bool, subscribe bool) {
-  smh, gids, ha, _, clean := setup("conc"+strconv.FormatBool(unreliable)+"-sub="+strconv.FormatBool(subscribe), unreliable, false)
+  smh, gids, ha, _, clean, _ := setup("conc"+strconv.FormatBool(unreliable)+"-sub="+strconv.FormatBool(subscribe), unreliable, false)
   defer clean()
 
   mck := shardmaster.MakeClerk(smh)
@@ -356,7 +356,7 @@ func doConcurrent(t *testing.T, unreliable bool, subscribe bool) {
 
       if subscribe {
         for iters := 0; iters < count; iters++ {
-          publish := <- ck.Receive
+          publish := <-ck.Receive
           if vals[iters] != publish.Value {
             t.Fatalf("Pub/sub received=%s, expected=%s", publish, vals[iters])
           }
@@ -394,7 +394,7 @@ func TestConcurrentUnreliable(t *testing.T) {
 *************************************************/
 
 func TestExpiryBasic(t *testing.T) {
-  smh, gids, ha, _, clean := setup("expiry-move", false, false)
+  smh, gids, ha, _, clean, _ := setup("expiry-move", false, false)
   defer clean()
 
   fmt.Printf("Test: Expiry Basic ...\n")
@@ -427,7 +427,7 @@ func TestExpiryBasic(t *testing.T) {
 }
 
 func TestExpiryMove(t *testing.T) {
-  smh, gids, ha, _, clean := setup("expiry-move", false, false)
+  smh, gids, ha, _, clean, _ := setup("expiry-move", false, false)
   defer clean()
 
   fmt.Printf("Test: Expiry Multiple Move ...\n")
@@ -469,7 +469,7 @@ func TestExpiryMove(t *testing.T) {
 *************************************************/
 
 func TestPubSubJoin(t *testing.T) {
-  smh, gids, ha, _, clean := setup("pubsub-join", false, false)
+  smh, gids, ha, _, clean, _ := setup("pubsub-join", false, false)
   defer clean()
 
   fmt.Printf("Test: Pub/Sub Join ...\n")
@@ -513,7 +513,7 @@ func TestPubSubJoin(t *testing.T) {
 }
 
 func TestPubSubMove(t *testing.T) {
-  smh, gids, ha, _, clean := setup("pubsub-move", false, false)
+  smh, gids, ha, _, clean, _ := setup("pubsub-move", false, false)
   defer clean()
 
   fmt.Printf("Test: Pub/Sub Multiple Move ...\n")
@@ -564,7 +564,7 @@ func TestPubSubMove(t *testing.T) {
 *************************************************/
 
 func TestPersistenceDiskOkay(t *testing.T) {
-  smh, gids, ha, sa, clean := setup("persistencegood", false, false)
+  smh, gids, ha, sa, clean, mbh := setup("persistencegood", false, false)
   defer clean()
 
   fmt.Printf("Test: Server recovers after failure and no disk loss...\n")
@@ -596,10 +596,9 @@ func TestPersistenceDiskOkay(t *testing.T) {
   // are keys still there after kill and restart?
   randomGroup := rand.Intn(len(sa))
   randomSKV := rand.Intn(len(sa[randomGroup]))
-  mb := sa[randomGroup][randomSKV].mb
   sa[randomGroup][randomSKV].kill()
   time.Sleep(1 * time.Second)
-  sa[randomGroup][randomSKV] = StartServer(gids[randomGroup], smh, ha[randomGroup], randomSKV, mb)
+  sa[randomGroup][randomSKV] = StartServer(gids[randomGroup], smh, ha[randomGroup], randomSKV, mbh)
   time.Sleep(2 * time.Second)
   for i := 0; i < len(keys); i++ {
     v := sa[randomGroup][randomSKV].table[keys[i]]
@@ -615,14 +614,14 @@ func TestPersistenceDiskOkay(t *testing.T) {
 }
 
 // func TestPersistenceDiskLoss(t *testing.T) {
-//   smh, gids, ha, _, clean := setup("persistencebad", false, false)
+//   smh, gids, ha, _, clean, _ := setup("persistencebad", false, false)
 //   defer clean()
 
 //   fmt.Printf("Test: Server recovers after failure and total disk loss...\n")
 // }
 
 // func TestPersistenceSuddenDiskOkay(t *testing.T) {
-//   smh, gids, ha, sa, clean := setup("persistencesuddengood", false, true)
+//   smh, gids, ha, sa, clean, _ := setup("persistencesuddengood", false, true)
 //   defer clean()
 
 //   fmt.Printf("Test: Server recovers after sudden failure and no disk loss...\n")
@@ -673,7 +672,7 @@ func TestPersistenceDiskOkay(t *testing.T) {
 // }
 
 // func TestPersistenceSuddenDiskLoss(t *testing.T) {
-//   smh, gids, ha, _, clean := setup("persistencesuddenbad", false, true)
+//   smh, gids, ha, _, clean, _ := setup("persistencesuddenbad", false, true)
 //   defer clean()
 
 //   fmt.Printf("Test: Server recovers after sudden failure and total disk loss...\n")

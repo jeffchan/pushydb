@@ -23,7 +23,6 @@ var _ = leveldb.OpenFile
 const (
   ServerLog           = false
   InitTimeout         = 10 * time.Millisecond
-  NotifyRetryInterval = 100 * time.Millisecond
   ReconfigReqIdPrefix = "reconfig:gid="
   ReconfigReqId       = ReconfigReqIdPrefix + "%d:%d->%d"
 )
@@ -92,7 +91,7 @@ type ShardKV struct {
   dead       bool // for testing
   unreliable bool // for testing
   sm         *shardmaster.Clerk
-  mb         string
+  mb         *messagebroker.Notifier
   px         *paxos.Paxos
 
   gid      int64 // my replica group ID
@@ -215,34 +214,6 @@ func (kv *ShardKV) Transfer(args *TransferArgs, reply *TransferReply) error {
   return nil
 }
 
-func (kv *ShardKV) notify(
-  seq int,
-  key string,
-  val string,
-  subscribers map[string]bool,
-  reqId string) {
-
-  args := &messagebroker.NotifyArgs{
-    GID: kv.gid,
-    Seq: seq,
-    PublishArgs: messagebroker.PublishArgs{
-      Key:   key,
-      Value: val,
-      ReqId: reqId,
-    },
-    Subscribers: CopySubscribers(subscribers),
-  }
-  var reply messagebroker.NotifyReply
-
-  for !kv.dead {
-    ok := call(kv.mb, "MBServer.Notify", args, &reply)
-    if ok && reply.Err == OK {
-      break
-    }
-    time.Sleep(NotifyRetryInterval)
-  }
-}
-
 func (kv *ShardKV) resolveOp(op Op) (string, Err) {
   seq := kv.px.Max() + 1
 
@@ -359,7 +330,14 @@ func (kv *ShardKV) applyPut(args PutArgs, timestamp time.Time) (string, Err) {
 
   // Publish
   kv.notifySeq += 1
-  go kv.notify(kv.notifySeq, key, newval, entry.Subscribers, args.ReqId)
+  go kv.mb.Notify(
+    kv.gid,
+    kv.notifySeq,
+    key,
+    newval,
+    args.ReqId,
+    CopySubscribers(entry.Subscribers),
+  )
 
   return oldval, OK
 }
@@ -608,7 +586,7 @@ func (kv *ShardKV) kill() {
 func StartServer(gid int64,
   shardmasters []string,
   servers []string, me int,
-  messagebroker string) *ShardKV {
+  messagebrokers []string) *ShardKV {
   gob.Register(Op{})
   gob.Register(PutArgs{})
   gob.Register(GetArgs{})
@@ -620,7 +598,7 @@ func StartServer(gid int64,
   kv.me = me
   kv.gid = gid
   kv.sm = shardmaster.MakeClerk(shardmasters)
-  kv.mb = messagebroker
+  kv.mb = messagebroker.MakeNotifier(messagebrokers)
   kv.config = kv.sm.Query(0)
 
   kv.table = make(map[string]*Entry)
