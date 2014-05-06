@@ -52,3 +52,13 @@ type DecidedReply struct {
   Err            Err
   HighestDoneSeq int
 }
+
+//
+// Ping
+//
+type PingArgs struct {
+  ID int // index into peers
+}
+type PingReply struct {
+  Err Err
+}

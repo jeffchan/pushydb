@@ -32,7 +32,8 @@ import "time"
 import "math"
 
 const (
-  Log = false
+  Log = true
+  PingInterval = 2000
 )
 
 type Paxos struct {
@@ -49,6 +50,8 @@ type Paxos struct {
   log            map[int]*Instance
   highestDone    int
   highestDoneAll int
+  iAmLeader      bool
+  peerTracker    []int
 }
 
 type Instance struct {
@@ -83,7 +86,9 @@ func (px *Paxos) shortAddr() string {
 
 func (px *Paxos) Propose(seq int, val interface{}) {
   it := px.getInstance(seq)
-  for it.decidedVal == nil && !px.dead {
+  fmt.Printf("[%d] propose called, iamleader: %t\n", px.me, px.iAmLeader)
+  for it.decidedVal == nil && !px.dead && px.iAmLeader {
+    fmt.Printf("[%d] I am leader, doing propose on seq %d\n", px.me, seq)
     n := px.n()
 
     // Send prepare(n)
@@ -415,6 +420,48 @@ func (px *Paxos) Kill() {
 }
 
 //
+// Ping other servers to tell you that you're alive
+//
+//
+func (px *Paxos) Tick() {
+  // fmt.Printf("[%d] Tick called\n", px.me)
+  for !px.dead {
+    // increment everything
+    for i,_ := range px.peerTracker {
+      px.peerTracker[i] += 1
+    }
+    // if any people above me recently pinged they are leader, otherwise I am
+    // fmt.Printf("[%d] peer tracker: %+v\n", px.me, px.peerTracker)
+    check := true
+    for i := px.me + 1; i < len(px.peerTracker); i++ {
+      if px.peerTracker[i] < 2 {
+        check = false
+      }
+    }
+    if check {
+      // fmt.Printf("[%d] I am leader\n", px.me)
+      px.iAmLeader = true
+    } else {
+      // fmt.Printf("[%d] I am not leader\n", px.me)
+      px.iAmLeader = false
+    }
+    // ping everybody
+    for _,srv := range px.peers {
+      args := PingArgs{px.me}
+      var reply PingReply
+      px.call(srv, "Ping", &args, &reply)
+    }
+    time.Sleep(PingInterval*time.Millisecond)
+  }
+}
+
+func (px *Paxos) Ping(args *PingArgs, reply *PingReply) error {
+  px.peerTracker[args.ID] = 0
+  reply.Err = OK
+  return nil
+}
+
+//
 // the application wants to create a paxos peer.
 // the ports of all the paxos peers (including this one)
 // are in peers[]. this servers port is peers[me].
@@ -427,8 +474,11 @@ func Make(peers []string, me int, rpcs *rpc.Server) *Paxos {
   px.majority = (len(peers) / 2) + 1
   px.highestDone = -1
   px.highestDoneAll = -1
+  px.peerTracker = make([]int, len(peers))
 
   px.log = make(map[int]*Instance)
+
+  go px.Tick()
 
   if rpcs != nil {
     // caller will create socket &c

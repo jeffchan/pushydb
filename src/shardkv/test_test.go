@@ -236,15 +236,6 @@ func TestPubSubMove(t *testing.T) {
   fmt.Printf("  ... Passed\n")
 }
 
-func TestPubSubConcurrent(t *testing.T) {
-  fmt.Printf("Test: Concurrent Pub/Sub ...\n")
-
-}
-
-func TestPubSubConcurrentUnreliable(t *testing.T) {
-  fmt.Printf("Test: Concurrent Unreliable Pub/Sub ...\n")
-}
-
 /*************************************************
 *****************UNSUBSCRIBE TESTS****************
 *************************************************/
