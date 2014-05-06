@@ -130,7 +130,7 @@ func TestMany(t *testing.T) {
   fmt.Printf(" ...Passed\n")
 }
 
-//test separate gid's and same sequence
+// Test separate gid's and same sequence
 func TestGroups(t *testing.T) {
   _, mbservers, clean := setup("groups", false)
   defer clean()
@@ -153,8 +153,8 @@ func TestGroups(t *testing.T) {
   pubArgs := make([]PublishArgs, 0, npublish)
   for i := 0; i < npublish; i++ {
     pubArg := PublishArgs{
-      Key:   strconv.Itoa(gids[i]),     //aka the group id's
-      Value: strconv.Itoa(i / ngroups), //aka the value of the sequence
+      Key:   strconv.Itoa(gids[i]),     // aka the group id's
+      Value: strconv.Itoa(i / ngroups), // aka the value of the sequence
       ReqId: "groups-" + strconv.Itoa(i+1),
     }
     pubArgs = append(pubArgs, pubArg)
