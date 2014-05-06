@@ -372,10 +372,10 @@ func TestConcurrentUnreliable(t *testing.T) {
 *************************************************/
 
 func TestExpiryBasic(t *testing.T) {
-  smh, gids, ha, _, clean := setup("basicexpiry", false, false)
+  smh, gids, ha, _, clean := setup("expiry-move", false, false)
   defer clean()
 
-  fmt.Printf("Test: Basic Expiry ...\n")
+  fmt.Printf("Test: Expiry Basic ...\n")
   mck := shardmaster.MakeClerk(smh)
   mck.Join(gids[0], ha[0])
 
@@ -399,6 +399,44 @@ func TestExpiryBasic(t *testing.T) {
   ov = ck.PutHash("a", "b")
   if ov != "" {
     t.Fatalf("Put got value, should've expired")
+  }
+
+  fmt.Printf("  ... Passed\n")
+}
+
+func TestExpiryMove(t *testing.T) {
+  smh, gids, ha, _, clean := setup("expiry-move", false, false)
+  defer clean()
+
+  fmt.Printf("Test: Expiry Multiple Move ...\n")
+  mck := shardmaster.MakeClerk(smh)
+  for i := 0; i < len(gids); i++ {
+    mck.Join(gids[i], ha[i])
+  }
+
+  ck := MakeClerk(smh)
+  defer cleanupClerk(ck)
+
+  ttl := 1 * time.Second
+
+  for i := 0; i < shardmaster.NShards; i++ {
+    key := string('0' + i)
+    val := string('0' + i)
+
+    ck.PutExt(key, val, false, ttl)
+
+    v := ck.Get(key)
+    if v != val {
+      t.Fatalf("Get got wrong value, expected=%s, got=%s", val, v)
+    }
+    time.Sleep(ttl)
+
+    ov := ck.Get(key)
+    if ov != "" {
+      t.Fatalf("Get got value, should've expired")
+    }
+
+    mck.Move(0, gids[rand.Int()%len(gids)])
   }
 
   fmt.Printf("  ... Passed\n")
