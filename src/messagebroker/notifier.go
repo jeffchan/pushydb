@@ -19,15 +19,17 @@ func (no *Notifier) Notify(
   key string,
   val string,
   reqId string,
+  expiration time.Time,
   subscribers map[string]bool,
 ) {
 
   args := &NotifyArgs{
     KeySeq: seq,
     PublishArgs: PublishArgs{
-      Key:   key,
-      Value: val,
-      ReqId: reqId,
+      Key:        key,
+      Value:      val,
+      ReqId:      reqId,
+      Expiration: expiration,
     },
     Subscribers: subscribers,
   }

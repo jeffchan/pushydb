@@ -2,6 +2,7 @@ package messagebroker
 
 import "net/rpc"
 import "fmt"
+import "time"
 
 const (
   OK                = "OK"
@@ -32,9 +33,10 @@ type Result struct {
 }
 
 type PublishArgs struct {
-  Key   string
-  Value string
-  ReqId string
+  Key        string
+  Value      string
+  ReqId      string
+  Expiration time.Time
 }
 
 type PublishReply struct {

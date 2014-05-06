@@ -334,6 +334,7 @@ func (kv *ShardKV) applyPut(args PutArgs, timestamp time.Time) (string, Err) {
     key,
     newval,
     args.ReqId,
+    entry.Expiration,
     CopySubscribers(entry.Subscribers),
   )
 
