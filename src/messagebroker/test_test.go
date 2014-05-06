@@ -160,6 +160,10 @@ func TestGroups(t *testing.T) {
     pubArgs = append(pubArgs, pubArg)
   }
 
+  // creates gids to be                     [0 1 2 3 0 1 2 3 0 1 2 3 0 1 2 3 0 1 2 3]
+  // creates publish args to have keys      [0 1 2 3 ... ]
+  // creates publish args to have values    [0 0 0 0 1 1 1 1 ... ]
+  // creates notify args to have sequences  [0 0 0 0 1 1 1 1 2 2 2 2 3 3 3 3 4 4 4 4]
   notifyArgs := make([]*NotifyArgs, 0, npublish)
   for i := 0; i < npublish; i++ {
     notifyArg := &NotifyArgs{
@@ -170,10 +174,6 @@ func TestGroups(t *testing.T) {
     }
     notifyArgs = append(notifyArgs, notifyArg)
   }
-  //creates gids to be                     [0 1 2 3 0 1 2 3 0 1 2 3 0 1 2 3 0 1 2 3]
-  //creates publish args to have keys      [0 1 2 3 ... ]
-  //creates publish args to have values    [0 0 0 0 1 1 1 1 ... ]
-  //creates notify args to have sequences  [0 0 0 0 1 1 1 1 2 2 2 2 3 3 3 3 4 4 4 4]
 
   var reply NotifyReply
   for i := 0; i < ngroups; i++ {
