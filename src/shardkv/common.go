@@ -28,7 +28,7 @@ const (
 type Err string
 
 type Entry struct {
-  Seq         int64
+  KeySeq      int64
   Value       string
   Expiration  time.Time
   Subscribers map[string]bool
@@ -36,14 +36,14 @@ type Entry struct {
 
 func NewEntry() *Entry {
   return &Entry{
-    Seq:         0,
+    KeySeq:      0,
     Subscribers: make(map[string]bool),
   }
 }
 
 func (entry *Entry) Clone() *Entry {
   return &Entry{
-    Seq:         entry.Seq,
+    KeySeq:      entry.KeySeq,
     Value:       entry.Value,
     Expiration:  entry.Expiration,
     Subscribers: CopySubscribers(entry.Subscribers),

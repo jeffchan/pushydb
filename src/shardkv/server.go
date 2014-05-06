@@ -327,10 +327,10 @@ func (kv *ShardKV) applyPut(args PutArgs, timestamp time.Time) (string, Err) {
 
   kv.table[key] = entry
 
-  entry.Seq += 1
+  entry.KeySeq += 1
   // Publish
   go kv.mb.Notify(
-    entry.Seq,
+    entry.KeySeq,
     key,
     newval,
     args.ReqId,
