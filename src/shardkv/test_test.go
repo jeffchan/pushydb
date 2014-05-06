@@ -304,8 +304,8 @@ func TestLimp(t *testing.T) {
   fmt.Printf("  ... Passed\n")
 }
 
-func doConcurrent(t *testing.T, unreliable bool) {
-  smh, gids, ha, _, clean := setup("conc"+strconv.FormatBool(unreliable), unreliable, false)
+func doConcurrent(t *testing.T, unreliable bool, subscribe bool) {
+  smh, gids, ha, _, clean := setup("conc"+strconv.FormatBool(unreliable)+"-sub="+strconv.FormatBool(subscribe), unreliable, false)
   defer clean()
 
   mck := shardmaster.MakeClerk(smh)
@@ -325,7 +325,14 @@ func doConcurrent(t *testing.T, unreliable bool) {
       mymck := shardmaster.MakeClerk(smh)
       key := strconv.Itoa(me)
       last := ""
-      for iters := 0; iters < 3; iters++ {
+
+      if subscribe {
+        ck.Subscribe(key)
+      }
+
+      count := 3
+      vals := make([]string, 0)
+      for iters := 0; iters < count; iters++ {
         nv := strconv.Itoa(rand.Int())
         v := ck.PutHash(key, nv)
         if v != last {
@@ -339,11 +346,26 @@ func doConcurrent(t *testing.T, unreliable bool) {
           t.Fatalf("Get(%v) expected %v got %v\n", key, last, v)
         }
 
+        vals = append(vals, last)
+
         mymck.Move(rand.Int()%shardmaster.NShards,
           gids[rand.Int()%len(gids)])
 
         time.Sleep(time.Duration(rand.Int()%30) * time.Millisecond)
       }
+
+      if subscribe {
+        for iters := 0; iters < count; iters++ {
+          publish := <- ck.Receive
+          if vals[iters] != publish.Value {
+            t.Fatalf("Pub/sub received=%s, expected=%s", publish, vals[iters])
+          }
+        }
+
+        ck.Unsubscribe(key)
+        close(ck.Receive)
+      }
+
     }(i)
   }
 
@@ -357,13 +379,13 @@ func doConcurrent(t *testing.T, unreliable bool) {
 
 func TestConcurrent(t *testing.T) {
   fmt.Printf("Test: Concurrent Put/Get/Move ...\n")
-  doConcurrent(t, false)
+  doConcurrent(t, false, false)
   fmt.Printf("  ... Passed\n")
 }
 
 func TestConcurrentUnreliable(t *testing.T) {
   fmt.Printf("Test: Concurrent Put/Get/Move (unreliable) ...\n")
-  doConcurrent(t, true)
+  doConcurrent(t, true, false)
   fmt.Printf("  ... Passed\n")
 }
 
@@ -537,14 +559,16 @@ func TestPubSubMove(t *testing.T) {
   fmt.Printf("  ... Passed\n")
 }
 
-// TODO
 func TestPubSubConcurrent(t *testing.T) {
   fmt.Printf("Test: Pub/Sub Concurrent ...\n")
-
+  doConcurrent(t, false, true)
+  fmt.Printf("  ... Passed\n")
 }
 
 func TestPubSubConcurrentUnreliable(t *testing.T) {
   fmt.Printf("Test: Pub/Sub Concurrent Unreliable ...\n")
+  doConcurrent(t, true, true)
+  fmt.Printf("  ... Passed\n")
 }
 
 /*************************************************
