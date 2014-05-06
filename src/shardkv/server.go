@@ -104,7 +104,6 @@ type ShardKV struct {
   reqsCache  map[int]map[string]*Result
 
   lastAppliedSeq int
-  notifySeq      int
 }
 
 func (kv *ShardKV) Get(args *GetArgs, reply *GetReply) error {
@@ -328,11 +327,10 @@ func (kv *ShardKV) applyPut(args PutArgs, timestamp time.Time) (string, Err) {
 
   kv.table[key] = entry
 
+  entry.Seq += 1
   // Publish
-  kv.notifySeq += 1
   go kv.mb.Notify(
-    kv.gid,
-    kv.notifySeq,
+    entry.Seq,
     key,
     newval,
     args.ReqId,
@@ -607,7 +605,6 @@ func StartServer(gid int64,
   kv.reqsCache = make(map[int]map[string]*Result)
 
   kv.lastAppliedSeq = -1
-  kv.notifySeq = 0
 
   rpcs := rpc.NewServer()
   rpcs.Register(kv)

@@ -22,8 +22,8 @@ type Operation string
 type Op struct {
   Operation Operation
   Args      interface{}
-  Seq       int
-  GID       int64
+  KeySeq    int64
+  Key       string
 }
 
 type Result struct {
@@ -42,8 +42,7 @@ type PublishReply struct {
 }
 
 type NotifyArgs struct {
-  GID         int64
-  Seq         int
+  KeySeq      int64
   PublishArgs PublishArgs
   Subscribers map[string]bool
 }

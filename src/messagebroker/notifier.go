@@ -15,8 +15,7 @@ func MakeNotifier(servers []string) *Notifier {
 }
 
 func (no *Notifier) Notify(
-  gid int64,
-  seq int,
+  seq int64,
   key string,
   val string,
   reqId string,
@@ -24,8 +23,7 @@ func (no *Notifier) Notify(
 ) {
 
   args := &NotifyArgs{
-    GID: gid,
-    Seq: seq,
+    KeySeq: seq,
     PublishArgs: PublishArgs{
       Key:   key,
       Value: val,
