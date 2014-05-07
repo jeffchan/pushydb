@@ -1,10 +1,10 @@
 package main
 
 import (
-  leveldb "github.com/syndtr/goleveldb/leveldb"
-  opt "github.com/syndtr/goleveldb/leveldb/opt"
   "bytes"
   "encoding/binary"
+  leveldb "github.com/syndtr/goleveldb/leveldb"
+  opt "github.com/syndtr/goleveldb/leveldb/opt"
   "log"
 )
 
@@ -14,10 +14,8 @@ const (
 
 // Wrapper around levelDB
 
-
 type PDB struct {
   db leveldb.DB
-
 }
 
 // LevelDB commands
@@ -36,7 +34,7 @@ func (pdb *PDB) Put(var_name string, value interface{}) {
 
 func (pdb *PDB) GetInt64(var_name string) int64 {
   var ans int64
-  data, err := pdb.db.Get([]byte(var_name), nil) 
+  data, err := pdb.db.Get([]byte(var_name), nil)
   buf := bytes.NewReader(data)
   err2 := binary.Read(buf, binary.LittleEndian, &ans)
   if err != nil || err2 != nil {
