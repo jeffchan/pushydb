@@ -62,3 +62,14 @@ type PingArgs struct {
 type PingReply struct {
   Err Err
 }
+
+//
+// Start
+//
+type StartArgs struct {
+  Seq int // sequence number
+  V   interface{}
+}
+type StartReply struct {
+  Err Err
+}

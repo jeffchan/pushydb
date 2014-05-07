@@ -254,11 +254,13 @@ func (kv *ShardKV) resolveOp(op Op) (string, Err) {
     return dup.Val, dup.Err
   }
 
+  // TODO: rpc call to start on the designated leader
   kv.px.Start(seq, op)
 
   to := InitTimeout
   time.Sleep(to)
 
+  // TODO: rpc call for status updates to designated leader
   decided, val := kv.px.Status(seq)
   for !decided || val != op {
     if (decided && val != op) || (seq <= kv.lastAppliedSeq) {

@@ -320,6 +320,17 @@ func (px *Paxos) Start(seq int, v interface{}) {
   go px.Propose(seq, v)
 }
 
+func (px *Paxos) Startpls(args *StartArgs, reply *StartReply) error {
+  if args.Seq < px.Min() {
+    reply.Err = Reject
+    return nil
+  }
+
+  go px.Propose(args.Seq, args.V)
+  reply.Err = OK
+  return nil
+}
+
 //
 // the application on this machine is done with
 // all instances <= seq.
