@@ -8,4 +8,4 @@ src/github.com
 media/*
 media/*/*
 data/compare.db
-pdb/data
+src/pdb/data

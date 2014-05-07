@@ -23,6 +23,51 @@ type PDB struct {
 // err = db.Put([]byte("key"), []byte("value"), nil)
 // err = db.Delete([]byte("key"), nil)
 
+
+// Mashes objects into a byte array
+package main
+
+import "fmt"
+import "bytes"
+import "encoding/binary"
+import "log"
+
+// One to one function from a bunch of string/int/fixed size objects to
+// byte array :)
+func getBytes(vals ...interface{}) []byte {
+  ans := make([]byte, 0)
+  for _, val := range(vals) {
+    var temp []byte
+    var err interface{}
+    err = nil
+    switch val.(type) {
+    case int:
+      val = int64(val.(int))
+      buf := new(bytes.Buffer)
+      err = binary.Write(buf, binary.LittleEndian, val)
+      temp = buf.Bytes()
+    case string:
+      temp = []byte(val.(string))
+    default:
+      buf := new(bytes.Buffer)
+      err = binary.Write(buf, binary.LittleEndian, val)
+      temp = buf.Bytes()
+    }
+    if len(temp) > 255 || err != nil {
+      log.Fatal("Mashing failed", len(temp), err)
+    }
+    ans = append(ans, byte(len(temp)))
+    ans = append(ans, temp...)
+  }
+  return ans
+}
+
+func main() {
+  fmt.Println(getBytes("Hello, playground"))
+}
+
+
+
 func (pdb *PDB) Put(var_name string, value interface{}) {
   buf := new(bytes.Buffer)
   err := binary.Write(buf, binary.LittleEndian, value)
