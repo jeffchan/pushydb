@@ -73,3 +73,15 @@ type StartArgs struct {
 type StartReply struct {
   Err Err
 }
+
+//
+// Status
+//
+type StatusArgs struct {
+  Seq int // sequence number
+}
+type StatusReply struct {
+  Res bool
+  Val interface{}
+  Err Err
+}

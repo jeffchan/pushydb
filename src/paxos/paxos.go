@@ -32,7 +32,7 @@ import "time"
 import "math"
 
 const (
-  Log = true
+  Log          = true
   PingInterval = 2000
 )
 
@@ -418,6 +418,34 @@ func (px *Paxos) Status(seq int) (bool, interface{}) {
   return true, it.decidedVal
 }
 
+func (px *Paxos) Statuspls(args *StatusArgs, reply *StatusReply) error {
+  if args.Seq < px.Min() {
+    reply.Res = false
+    reply.Val = nil
+    reply.Err = OK
+    return nil
+  }
+
+  if args.Seq > px.Max() {
+    reply.Res = false
+    reply.Val = nil
+    reply.Err = OK
+    return nil
+  }
+
+  it := px.getInstance(args.Seq)
+  if it.decidedVal == nil {
+    reply.Res = false
+    reply.Val = nil
+    reply.Err = OK
+    return nil
+  }
+  reply.Res = true
+  reply.Val = it.decidedVal
+  reply.Err = OK
+  return nil
+}
+
 //
 // tell the peer to shut itself down.
 // for testing.
@@ -438,7 +466,7 @@ func (px *Paxos) Tick() {
   // fmt.Printf("[%d] Tick called\n", px.me)
   for !px.dead {
     // increment everything
-    for i,_ := range px.peerTracker {
+    for i, _ := range px.peerTracker {
       px.peerTracker[i] += 1
     }
     // if any people above me recently pinged they are leader, otherwise I am
@@ -457,12 +485,12 @@ func (px *Paxos) Tick() {
       px.iAmLeader = false
     }
     // ping everybody
-    for _,srv := range px.peers {
+    for _, srv := range px.peers {
       args := PingArgs{px.me}
       var reply PingReply
       px.call(srv, "Ping", &args, &reply)
     }
-    time.Sleep(PingInterval*time.Millisecond)
+    time.Sleep(PingInterval * time.Millisecond)
   }
 }
 
@@ -470,6 +498,17 @@ func (px *Paxos) Ping(args *PingArgs, reply *PingReply) error {
   px.peerTracker[args.ID] = 0
   reply.Err = OK
   return nil
+}
+
+func (px *Paxos) GetLeader() int {
+  leader := px.me
+  for i := px.me + 1; i < len(px.peerTracker); i++ {
+    if px.peerTracker[i] < 2 {
+      leader = i
+    }
+  }
+
+  return leader
 }
 
 //
