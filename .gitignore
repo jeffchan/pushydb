@@ -5,3 +5,7 @@ Thumbs.db
 
 src/code.google.com
 src/github.com
+media/*
+media/*/*
+data/compare.db
+pdb/data
