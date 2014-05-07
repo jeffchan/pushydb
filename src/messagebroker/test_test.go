@@ -68,7 +68,7 @@ func TestBasic(t *testing.T) {
     Expiration: time.Now(),
   }
   args := &NotifyArgs{
-    KeySeq:      0,
+    Version:     0,
     PublishArgs: pubArgs,
     Subscribers: map[string]bool{addr: true},
   }
@@ -111,7 +111,7 @@ func TestMany(t *testing.T) {
   notifyArgs := make([]*NotifyArgs, 0, npublish)
   for i := 0; i < npublish; i++ {
     notifyArg := &NotifyArgs{
-      KeySeq:      int64(i + 1),
+      Version:     int64(i + 1),
       PublishArgs: pubArgs[i],
       Subscribers: map[string]bool{addr: true},
     }
@@ -168,7 +168,7 @@ func TestGroups(t *testing.T) {
   notifyArgs := make([]*NotifyArgs, 0, npublish)
   for i := 0; i < npublish; i++ {
     notifyArg := &NotifyArgs{
-      KeySeq:      int64(i / ngroups),
+      Version:     int64(i / ngroups),
       PublishArgs: pubArgs[i],
       Subscribers: map[string]bool{addr: true},
     }
