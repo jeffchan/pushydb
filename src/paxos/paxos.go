@@ -86,9 +86,9 @@ func (px *Paxos) shortAddr() string {
 
 func (px *Paxos) Propose(seq int, val interface{}) {
   it := px.getInstance(seq)
-  fmt.Printf("[%d] propose called, iamleader: %t\n", px.me, px.iAmLeader)
-  for it.decidedVal == nil && !px.dead && px.iAmLeader {
-    fmt.Printf("[%d] I am leader, doing propose on seq %d\n", px.me, seq)
+  // fmt.Printf("[%d] propose called, iamleader: %t\n", px.me, px.iAmLeader)
+  for it.decidedVal == nil && !px.dead {
+    // fmt.Printf("[%d] I am leader, doing propose on seq %d\n", px.me, seq)
     n := px.n()
 
     // Send prepare(n)
@@ -148,15 +148,22 @@ func (px *Paxos) Propose(seq int, val interface{}) {
     min := math.MaxInt32
     allCount := 0
     for _, srv := range px.peers {
-      args := DecidedArgs{seq, maxVal}
-      var reply DecidedReply
-      reply.Seq = seq
-      ok := px.call(srv, "Decided", &args, &reply)
-      if ok && reply.HighestDoneSeq != -1 {
-        if reply.HighestDoneSeq < min {
-          min = reply.HighestDoneSeq
+      for !px.dead{
+        // fmt.Println(seq)
+        args := DecidedArgs{seq, maxVal}
+        var reply DecidedReply
+        reply.Seq = seq
+        ok := px.call(srv, "Decided", &args, &reply)
+        if ok && reply.HighestDoneSeq != -1 {
+          if reply.HighestDoneSeq < min {
+            min = reply.HighestDoneSeq
+          }
+          allCount++
         }
-        allCount++
+        if ok {
+          break
+        }
+        time.Sleep(time.Millisecond*100)
       }
     }
 
@@ -221,6 +228,8 @@ func (px *Paxos) call(srv string, name string, args interface{}, reply interface
       px.Accept(args.(*AcceptArgs), reply.(*AcceptReply))
     } else if name == "Decided" {
       px.Decided(args.(*DecidedArgs), reply.(*DecidedReply))
+    } else if name == "Ping" {
+      px.Ping(args.(*PingArgs), reply.(*PingReply))
     } else {
       return false
     }
@@ -262,7 +271,7 @@ func call(srv string, name string, args interface{}, reply interface{}) bool {
     return true
   }
 
-  fmt.Println(err)
+  // fmt.Println(err)
   return false
 }
 
@@ -317,12 +326,23 @@ func (px *Paxos) Start(seq int, v interface{}) {
     return
   }
 
-  go px.Propose(seq, v)
+  // go px.Propose(seq, v)
+  leader := px.GetLeader()
+  if leader == px.me {
+    go px.Propose(seq, v)
+  } else {
+    args := StartArgs{seq, v}
+    var reply StartReply
+    ok := call(px.peers[leader], "Paxos.Startpls", &args, &reply)
+    if !ok {
+      go px.Propose(seq, v)
+    }
+  }
 }
 
 func (px *Paxos) Startpls(args *StartArgs, reply *StartReply) error {
   if args.Seq < px.Min() {
-    reply.Err = Reject
+    reply.Err = OK
     return nil
   }
 
@@ -418,34 +438,6 @@ func (px *Paxos) Status(seq int) (bool, interface{}) {
   return true, it.decidedVal
 }
 
-func (px *Paxos) Statuspls(args *StatusArgs, reply *StatusReply) error {
-  if args.Seq < px.Min() {
-    reply.Res = false
-    reply.Val = nil
-    reply.Err = OK
-    return nil
-  }
-
-  if args.Seq > px.Max() {
-    reply.Res = false
-    reply.Val = nil
-    reply.Err = OK
-    return nil
-  }
-
-  it := px.getInstance(args.Seq)
-  if it.decidedVal == nil {
-    reply.Res = false
-    reply.Val = nil
-    reply.Err = OK
-    return nil
-  }
-  reply.Res = true
-  reply.Val = it.decidedVal
-  reply.Err = OK
-  return nil
-}
-
 //
 // tell the peer to shut itself down.
 // for testing.
@@ -485,10 +477,22 @@ func (px *Paxos) Tick() {
       px.iAmLeader = false
     }
     // ping everybody
+    min := math.MaxInt32
+    allCount := 0
     for _, srv := range px.peers {
       args := PingArgs{px.me}
       var reply PingReply
-      px.call(srv, "Ping", &args, &reply)
+      ok := px.call(srv, "Ping", &args, &reply)
+      if ok && reply.HighestDoneSeq != -1 {
+        if reply.HighestDoneSeq < min {
+          min = reply.HighestDoneSeq
+        }
+        allCount++
+      }
+    }
+    // Free memory if common highest done seq consensus
+    if allCount == len(px.peers) {
+      px.free(min)
     }
     time.Sleep(PingInterval * time.Millisecond)
   }
@@ -497,6 +501,7 @@ func (px *Paxos) Tick() {
 func (px *Paxos) Ping(args *PingArgs, reply *PingReply) error {
   px.peerTracker[args.ID] = 0
   reply.Err = OK
+  reply.HighestDoneSeq = px.highestDone // piggyback
   return nil
 }
 

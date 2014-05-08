@@ -61,6 +61,7 @@ type PingArgs struct {
 }
 type PingReply struct {
   Err Err
+  HighestDoneSeq int
 }
 
 //
@@ -71,17 +72,5 @@ type StartArgs struct {
   V   interface{}
 }
 type StartReply struct {
-  Err Err
-}
-
-//
-// Status
-//
-type StatusArgs struct {
-  Seq int // sequence number
-}
-type StatusReply struct {
-  Res bool
-  Val interface{}
   Err Err
 }

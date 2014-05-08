@@ -243,39 +243,6 @@ func (kv *ShardKV) notify(
   }
 }
 
-func (kv *ShardKV) SuperStart(seq int, op interface{}) {
-  // am I the designated leader?
-  for !kv.dead {
-    leader := kv.px.GetLeader()
-    if leader == kv.px.me {
-      kv.px.Start(seq, op)
-      break
-    } else {
-      args := StartArgs{seq, op}
-      var reply StartReply
-      ok := call(kv.px.peers[leader], "Paxos.Startpls", args, &reply)
-      if ok && reply.Err == OK {
-        break
-      }
-      time.Sleep(NotifyRetryInterval)
-    }
-  }
-}
-
-func (kv *ShardKV) SuperStatus(seq int) (bool, interface{}) {
-  leader := kv.px.GetLeader()
-  if leader == kv.px.me {
-    return kv.px.Status(seq)
-  } else {
-    args := StatusArgs{seq}
-    var reply StatusReply
-    ok := call(kv.px.peers[leader], "Paxos.Statuspls", args, &reply)
-    if ok && reply.Err == OK {
-      return reply.Res, reply.Val
-    }
-  }
-}
-
 func (kv *ShardKV) resolveOp(op Op) (string, Err) {
   seq := kv.px.Max() + 1
 
@@ -287,18 +254,17 @@ func (kv *ShardKV) resolveOp(op Op) (string, Err) {
     return dup.Val, dup.Err
   }
 
-  kv.SuperStart(seq, op)
+  kv.px.Start(seq, op)
 
   to := InitTimeout
   time.Sleep(to)
 
-  // TODO: rpc call for status updates to designated leader
-  decided, val := kv.SuperStatus(seq)
+  decided, val := kv.px.Status(seq)
   for !decided || val != op {
     if (decided && val != op) || (seq <= kv.lastAppliedSeq) {
       kv.log("Seq=%d already decided", seq)
       seq = kv.px.Max() + 1
-      kv.px.SuperStart(seq, op)
+      kv.px.Start(seq, op)
     }
 
     // kv.log("Retry w/ seq=%d", seq)
@@ -307,7 +273,7 @@ func (kv *ShardKV) resolveOp(op Op) (string, Err) {
       to *= 2
     }
 
-    decided, val = kv.px.SuperStatus(seq)
+    decided, val = kv.px.Status(seq)
   }
 
   // kv.log("Seq=%d decided!", seq)

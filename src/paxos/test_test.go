@@ -605,15 +605,18 @@ func TestManyUnreliable(t *testing.T) {
     for seq >= 3 && ndecided(t, pxa, seq-3) < npaxos {
       time.Sleep(20 * time.Millisecond)
     }
+    fmt.Printf("You are kinda fucked\n")
     for i := 0; i < npaxos; i++ {
       pxa[i].Start(seq, (seq*10)+i)
     }
   }
 
+  fmt.Printf("You are fuck fucked\n")
   for {
     done := true
     for seq := 1; seq < ninst; seq++ {
       if ndecided(t, pxa, seq) < npaxos {
+        fmt.Printf("You are fucked, %d\n", seq)
         done = false
       }
     }
