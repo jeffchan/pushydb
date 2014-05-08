@@ -57,6 +57,7 @@ type Paxos struct {
 type Instance struct {
   seq        int
   decidedVal interface{}
+  ProposerRunning bool
 
   // Acceptor's state
   prepareN    int64
@@ -86,9 +87,14 @@ func (px *Paxos) shortAddr() string {
 
 func (px *Paxos) Propose(seq int, val interface{}) {
   it := px.getInstance(seq)
-  // fmt.Printf("[%d] propose called, iamleader: %t\n", px.me, px.iAmLeader)
+
+  if it.ProposerRunning {
+    return
+  } else {
+    it.ProposerRunning = true
+  }
+
   for it.decidedVal == nil && !px.dead {
-    // fmt.Printf("[%d] I am leader, doing propose on seq %d\n", px.me, seq)
     n := px.n()
 
     // Send prepare(n)
@@ -148,8 +154,8 @@ func (px *Paxos) Propose(seq int, val interface{}) {
     min := math.MaxInt32
     allCount := 0
     for _, srv := range px.peers {
-      for !px.dead{
-        // fmt.Println(seq)
+      // for !px.dead{
+      //   fmt.Println(seq)
         args := DecidedArgs{seq, maxVal}
         var reply DecidedReply
         reply.Seq = seq
@@ -160,11 +166,11 @@ func (px *Paxos) Propose(seq int, val interface{}) {
           }
           allCount++
         }
-        if ok {
-          break
-        }
-        time.Sleep(time.Millisecond*100)
-      }
+        // if ok {
+        //   break
+        // }
+        // time.Sleep(time.Millisecond*100)
+      // }
     }
 
     // Free memory if common highest done seq consensus
@@ -516,6 +522,21 @@ func (px *Paxos) GetLeader() int {
   return leader
 }
 
+// tries to clean up any remaining undecided instances by starting proposer on it
+func (px *Paxos) Pusher() {
+  for !px.dead {
+    px.mu.Lock()
+    for i, s := range px.log {
+      if s.decidedVal == nil {
+        // fmt.Printf("[PAXOS] %d: PUSHER: pushing seq %d\n", px.me, i)
+        go px.Propose(i, s.acceptedVal)
+      }
+    }
+    px.mu.Unlock()
+    time.Sleep(100 * time.Millisecond)
+  }
+}
+
 //
 // the application wants to create a paxos peer.
 // the ports of all the paxos peers (including this one)
@@ -534,6 +555,7 @@ func Make(peers []string, me int, rpcs *rpc.Server) *Paxos {
   px.log = make(map[int]*Instance)
 
   go px.Tick()
+  go px.Pusher()
 
   if rpcs != nil {
     // caller will create socket &c
