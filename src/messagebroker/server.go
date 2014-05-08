@@ -78,7 +78,7 @@ func (s *Subscriber) Unsubscribe(key string) bool {
 
 func NewSubscriber() *Subscriber {
   return &Subscriber{
-    Next: make(map[string]int64),
+    Next:     make(map[string]int64),
     QuitChan: make(chan bool),
   }
 }
@@ -210,9 +210,9 @@ func (mb *MBServer) applyNotifyPut(args NotifyPutArgs) Err {
 
   // We may receive these out of order
   // Cache the notification
-  publishArgs := &PublishArgs {
-    Type: Put,
-    ReqId: args.ReqId,
+  publishArgs := &PublishArgs{
+    Type:    Put,
+    ReqId:   args.ReqId,
     PutArgs: args,
   }
   mb.setBuffer(key, version, publishArgs)
@@ -228,9 +228,9 @@ func (mb *MBServer) applyNotifySubscribe(args NotifySubscribeArgs) Err {
 
   // We may receive these out of order
   // Cache the notification
-  publishArgs := &PublishArgs {
-    Type: Subscribe,
-    ReqId: args.ReqId,
+  publishArgs := &PublishArgs{
+    Type:          Subscribe,
+    ReqId:         args.ReqId,
     SubscribeArgs: args,
   }
   mb.setBuffer(key, version, publishArgs)
@@ -254,7 +254,7 @@ func (mb *MBServer) applyNotifySubscribe(args NotifySubscribeArgs) Err {
     done := false
     for !done {
       done = s.Next[key] == version+1
-      time.Sleep(50*time.Millisecond)
+      time.Sleep(50 * time.Millisecond)
     }
     end := s.Unsubscribe(key)
     if end {
@@ -270,12 +270,12 @@ func (mb *MBServer) applyNotifySubscribe(args NotifySubscribeArgs) Err {
 func (mb *MBServer) publish(addr string, s *Subscriber, quit chan bool) {
   dummy := make(chan bool)
   mb.log("start go routine1")
-  go func () { dummy <- true }()
+  go func() { dummy <- true }()
   mb.log("start go routine2")
   for !mb.dead {
     select {
     case <-dummy:
-      for key,next := range s.Next {
+      for key, next := range s.Next {
         buffer, exists := mb.getBuffer(key, next)
         mb.log("lets find key=%s, ver=%d, exists=%b", key, next, exists)
         if !exists {
@@ -286,12 +286,12 @@ func (mb *MBServer) publish(addr string, s *Subscriber, quit chan bool) {
         ok := call(addr, "Clerk.Publish", buffer, &reply)
         if ok && reply.Err == OK {
           mb.log("successfully ok")
-          s.Next[key] = next+1
+          s.Next[key] = next + 1
         }
 
       }
       time.Sleep(50 * time.Millisecond)
-      go func () { dummy <- true }()
+      go func() { dummy <- true }()
     case <-quit:
       return
     }

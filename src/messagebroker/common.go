@@ -84,7 +84,7 @@ type NotifyPutArgs struct {
 
   Value      string // Before PutHash (if any)
   PrevValue  string
-  DoHash     bool   // For PutHash
+  DoHash     bool // For PutHash
   Expiration time.Time
 }
 

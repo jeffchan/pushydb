@@ -28,22 +28,22 @@ const (
 type Err string
 
 type Entry struct {
-  Version     int64
-  Value       string
-  Expiration  time.Time
+  Version    int64
+  Value      string
+  Expiration time.Time
 }
 
 func NewEntry() *Entry {
   return &Entry{
-    Version:     0,
+    Version: 0,
   }
 }
 
 func (entry *Entry) Clone() *Entry {
   return &Entry{
-    Version:     entry.Version,
-    Value:       entry.Value,
-    Expiration:  entry.Expiration,
+    Version:    entry.Version,
+    Value:      entry.Value,
+    Expiration: entry.Expiration,
   }
 }
 
