@@ -11,6 +11,7 @@ const (
   ErrAlreadyApplied = "ErrAlreadyApplied"
   ErrInvalid        = "ErrInvalid"
   ErrNoOp           = "ErrNoOp"
+  ErrOutOfOrder     = "ErrOutOfOrder"
 )
 
 type Operation string

@@ -1,6 +1,9 @@
 package messagebroker
 
 import "time"
+import "fmt"
+
+var _ = fmt.Println
 
 const RetryInterval = 100 * time.Millisecond
 

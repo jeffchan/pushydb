@@ -491,9 +491,7 @@ func TestPubSubJoin(t *testing.T) {
 
   // Subscribe from key
   ck.Subscribe("d")
-  fmt.Println("asdasaa")
   v := <-ck.Receive
-  fmt.Println("asdasaaasdasd")
   if v.Key() != "d" {
     t.Fatalf("Subscribed to wrong key")
   }
