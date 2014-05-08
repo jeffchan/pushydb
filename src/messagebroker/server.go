@@ -29,9 +29,59 @@ type MBServer struct {
   px         *paxos.Paxos
 
   lastAppliedSeq int
-  reqs           map[string]map[int64]Err         // Key -> Ver -> Err
-  notifications  map[string]map[int64]*NotifyArgs // Key -> Ver -> NotifyArgs
-  next           map[string]map[string]int64      // Client -> Key -> Next to publish
+  reqs           map[string]map[int64]Err          // Key -> Ver -> Err
+  toPublish      map[string]map[int64]*PublishArgs // Key -> Ver -> PublishArgs
+  subscribers    map[string]*Subscriber            // Client -> Subscribe struct
+}
+
+type Subscriber struct {
+  mu       sync.Mutex
+  Next     map[string]int64
+  NextChan chan string
+  QuitChan chan bool
+}
+
+func (s *Subscriber) Subscribe(key string, start int64) (bool, chan string, chan bool) {
+  s.mu.Lock()
+  defer s.mu.Unlock()
+
+  first := false
+
+  _, ok := s.Next[key]
+  // if ok, then already subscribed
+  if !ok {
+    s.Next[key] = start+1
+
+    first = len(s.Next) == 1
+  }
+
+  return first,s.NextChan,s.QuitChan
+}
+
+func (s *Subscriber) Unsubscribe(key string) {
+  s.mu.Lock()
+  defer s.mu.Unlock()
+
+  _, ok := s.Next[key]
+  if ok {
+    delete(s.Next, key)
+
+    if len(s.Next) == 0 {
+      s.QuitChan <- true
+    }
+  }
+}
+
+func (s *Subscriber) Notify(key string) {
+  s.nextChan <- key
+}
+
+func NewSubscriber() *Subscriber {
+  return &Subscriber{
+    Next: make(map[string]int64),
+    NextChan: make(chan string),
+    QuitChan: make(chan bool),
+  }
 }
 
 func RandMTime() time.Duration {
@@ -53,25 +103,44 @@ func (mb *MBServer) Kill() {
   mb.px.Kill()
 }
 
-func (mb *MBServer) Notify(args *NotifyArgs, reply *NotifyReply) error {
-  ver := args.Version
-  pubArgs := args.PublishArgs
-  key := pubArgs.Key
-  val := pubArgs.Value
+func (mb *MBServer) NotifyPut(args *NotifyPutArgs, reply *NotifyPutReply) error {
+  key := args.Key
+  version := args.Version
 
-  mb.log("Notify receive, key=%s, val=%s, ver=%d, list=%s", key, val, ver, args.Subscribers)
+  mb.log("Notify put receive, key=%s, version=%d,", key, version)
 
   op := Op{
-    Operation: Notify,
+    Operation: NotifyPut,
     Args:      *args,
-    Version:   ver,
     Key:       key,
+    Version:   version,
   }
 
   err := mb.resolveOp(op)
   reply.Err = err
 
-  mb.log("Notify return, key=%s, val=%s, ver=%d, list=%s, err=%s", key, val, ver, args.Subscribers, err)
+  mb.log("Notify put return, key=%s, version=%d, err=%s", key, version, err)
+
+  return nil
+}
+
+func (mb *MBServer) NotifySubscribe(args *NotifySubscribeArgs, reply *NotifySubscribeReply) error {
+  key := args.Key
+  version := args.Version
+
+  mb.log("Notify subscribe receive, key=%s, version=%d,", key, version)
+
+  op := Op{
+    Operation: NotifySubscribe,
+    Args:      *args,
+    Key:       key,
+    Version:   version,
+  }
+
+  err := mb.resolveOp(op)
+  reply.Err = err
+
+  mb.log("Notify subscribe return, key=%s, version=%d, err=%s", key, version, err)
 
   return nil
 }
@@ -120,67 +189,95 @@ func (mb *MBServer) resolveOp(op Op) Err {
   return err
 }
 
-// Goroutine per client
-// Publishes notification in version order
-func (mb *MBServer) publish(client string, key string, next int64) {
-  for !mb.dead {
-    notification, exists := mb.getNotifications(key, next)
-    // Wait until next notification is available
-    for !exists && !mb.dead {
-      notification, exists = mb.getNotifications(key, next)
-      time.Sleep(50 * time.Millisecond)
-    }
-
-    if notification == nil {
-      return
-    }
-
-    // Only publish if client on the subscriber list
-    _, toPublish := notification.Subscribers[client]
-    if toPublish {
-      pubArgs := notification.PublishArgs
-      var reply PublishReply
-
-      // Try to publish the notification
-      for !mb.dead {
-        ok := call(client, "Clerk.Publish", pubArgs, &reply)
-        if ok && reply.Err == OK {
-          break
-        }
-        time.Sleep(ClientRetryInterval)
-      }
-    }
-
-    // Move onto next notification
-    next += 1
-
-    mb.mu.Lock()
-    mb.next[client][key] = next
-    mb.mu.Unlock()
-  }
-}
-
-func (mb *MBServer) applyNotify(args NotifyArgs) Err {
-  key := args.PublishArgs.Key
-  ver := args.Version
+func (mb *MBServer) applyNotifyPut(args NotifyPutArgs) Err {
+  key := args.Key
+  version := args.Version
 
   // We may receive these out of order
   // Cache the notification
-  mb.setNotifications(key, ver, &args)
+  publishArgs := &PublishArgs {
+    Type: Put,
+    ReqId: args.ReqId,
+    PutArgs: args,
+  }
+  mb.setToPublish(key, version, publishArgs)
 
-  for client, sub := range args.Subscribers {
-    if !sub {
-      continue
+  mb.mu.Lock()
+  for _,subscriber := range mb.subscribers {
+    subscriber.Notify(key)
+  }
+  mb.mu.Unlock()
+
+  return OK
+}
+
+func (mb *MBServer) applyNotifySubscribe(args NotifySubscribeArgs) Err {
+  key := args.Key
+  version := args.Version
+
+  // We may receive these out of order
+  // Cache the notification
+  publishArgs := &PublishArgs {
+    Type: Subscribe,
+    ReqId: args.ReqId,
+    SubscribeArgs: args,
+  }
+  mb.setToPublish(key, version, publishArgs)
+
+  mb.mu.Lock()
+  for _,subscriber := range mb.subscribers {
+    subscriber.Notify(key)
+  }
+  mb.mu.Unlock()
+
+  addr := args.Address
+  unsub := args.Unsubscribe
+
+  mb.mu.Lock()
+  subscriber, ok := mb.subscribers[addr]
+  if !ok {
+    subscriber = NewSubscriber()
+    mb.subscribers[addr] = subscriber
+    start, nextChan, quitChan := subscriber.Subscribe(key, args.Version)
+    if start {
+      go mb.publish(addr, subscriber, nextChan, quitChan)
     }
+  } else if unsub {
+    subscriber.Unsubscribe(key)
+  }
+  mb.mu.Unlock()
 
-    // Launch publish goroutine per client
-    _, exists := mb.getNext(client, key)
-    if !exists {
-      mb.next[client][key] = ver
-      go mb.publish(client, key, ver)
+  return OK
+}
+
+func (mb *MBServer) publish(addr string, subscriber *Subscriber, next chan string, quit chan bool) {
+  for !mb.dead {
+    select {
+    case key := <-next:
+      next,subscribed := subscriber.Next[key]
+      if subscribed {
+        toPublish, exists := mb.getToPublish(key, next)
+        for exists && !mb.dead {
+          for !mb.dead {
+            var reply PublishReply
+            ok := call(addr, "Clerk.Publish", toPublish, &reply)
+            if ok && reply.Err == OK {
+              break
+            }
+            time.Sleep(ClientRetryInterval)
+          }
+          next += 1
+          subscriber.Next[key] = next
+
+          time.Sleep(50 * time.Millisecond)
+
+          toPublish, exists = mb.getToPublish(key, next)
+        }
+      }
+    case <-quit:
+      return
     }
   }
-  return OK
 }
 
 func (mb *MBServer) applyOp(op *Op) Err {
@@ -197,9 +294,12 @@ func (mb *MBServer) applyOp(op *Op) Err {
   }
 
   switch op.Operation {
-  case Notify:
-    args := op.Args.(NotifyArgs)
-    return mb.applyNotify(args)
+  case NotifySubscribe:
+    args := op.Args.(NotifySubscribeArgs)
+    return mb.applyNotifySubscribe(args)
+  case NotifyPut:
+    args := op.Args.(NotifyPutArgs)
+    return mb.applyNotifyPut(args)
   }
 
   // Should not reach this point
@@ -221,42 +321,28 @@ func (mb *MBServer) getReqs(key string, ver int64) (Err, bool) {
   return result, ok
 }
 
-func (mb *MBServer) setNotifications(key string, ver int64, notification *NotifyArgs) {
+func (mb *MBServer) setToPublish(key string, ver int64, toPublish *PublishArgs) {
   mb.mu.Lock()
   defer mb.mu.Unlock()
 
-  _, exists := mb.notifications[key]
+  _, exists := mb.toPublish[key]
   if !exists {
-    mb.notifications[key] = make(map[int64]*NotifyArgs)
+    mb.toPublish[key] = make(map[int64]*PublishArgs)
   }
-  mb.notifications[key][ver] = notification
+  mb.toPublish[key][ver] = toPublish
 }
 
-func (mb *MBServer) getNotifications(key string, ver int64) (*NotifyArgs, bool) {
+func (mb *MBServer) getToPublish(key string, ver int64) (*PublishArgs, bool) {
   mb.mu.Lock()
   defer mb.mu.Unlock()
 
-  notifications, exists := mb.notifications[key]
+  toPublish, exists := mb.toPublish[key]
   if !exists {
-    mb.notifications[key] = make(map[int64]*NotifyArgs)
+    mb.toPublish[key] = make(map[int64]*PublishArgs)
     return nil, false
   }
 
-  result, ok := notifications[ver]
-  return result, ok
-}
-
-func (mb *MBServer) getNext(client string, key string) (int64, bool) {
-  mb.mu.Lock()
-  defer mb.mu.Unlock()
-
-  next, exists := mb.next[client]
-  if !exists {
-    mb.next[client] = make(map[string]int64)
-    return 0, false
-  }
-
-  result, ok := next[key]
+  result, ok := toPublish[ver]
   return result, ok
 }
 
@@ -320,13 +406,14 @@ func (mb *MBServer) logSync() {
 func StartServer(servers []string, me int) *MBServer {
   gob.Register(Op{})
   gob.Register(PublishArgs{})
-  gob.Register(NotifyArgs{})
+  gob.Register(NotifyPutArgs{})
+  gob.Register(NotifySubscribeArgs{})
 
   mb := new(MBServer)
   mb.me = me
   mb.reqs = make(map[string]map[int64]Err)
-  mb.notifications = make(map[string]map[int64]*NotifyArgs)
-  mb.next = make(map[string]map[string]int64)
+  mb.toPublish = make(map[string]map[int64]*PublishArgs)
+  mb.subscribers = make(map[string]*Subscriber)
   mb.lastAppliedSeq = -1
 
   rpcs := rpc.NewServer()

@@ -28,6 +28,20 @@ type Clerk struct {
   pending []*PublishArgs
 }
 
+func GetValue(args *PublishArgs) string {
+  if args.Type == Put {
+    return args.PutArgs.Value
+  }
+  return ""
+}
+
+func GetSubscribedKey(args *PublishArgs) string {
+  if args.Type == Subscribe {
+    return args.SubscribeArgs.Key
+  }
+  return ""
+}
+
 func MakeClerk(me string, publish chan PublishArgs) *Clerk {
   ck := new(Clerk)
   ck.me = me

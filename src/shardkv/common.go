@@ -31,13 +31,11 @@ type Entry struct {
   Version     int64
   Value       string
   Expiration  time.Time
-  Subscribers map[string]bool
 }
 
 func NewEntry() *Entry {
   return &Entry{
     Version:     0,
-    Subscribers: make(map[string]bool),
   }
 }
 
@@ -46,22 +44,11 @@ func (entry *Entry) Clone() *Entry {
     Version:     entry.Version,
     Value:       entry.Value,
     Expiration:  entry.Expiration,
-    Subscribers: CopySubscribers(entry.Subscribers),
   }
 }
 
 func (entry *Entry) IsExpired(refTime time.Time) bool {
   return !entry.Expiration.IsZero() && refTime.After(entry.Expiration)
-}
-
-func CopySubscribers(src map[string]bool) map[string]bool {
-  dst := make(map[string]bool)
-  for k, v := range src {
-    if v {
-      dst[k] = v
-    }
-  }
-  return dst
 }
 
 const (

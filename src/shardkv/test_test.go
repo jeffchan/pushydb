@@ -328,6 +328,10 @@ func doConcurrent(t *testing.T, unreliable bool, subscribe bool) {
 
       if subscribe {
         ck.Subscribe(key)
+        publish := <-ck.Receive
+        if publish.Key() != key {
+          t.Fatalf("Subscribed to wrong key")
+        }
       }
 
       count := 3
@@ -355,14 +359,20 @@ func doConcurrent(t *testing.T, unreliable bool, subscribe bool) {
       }
 
       if subscribe {
+        var publish messagebroker.PublishArgs
+
         for iters := 0; iters < count; iters++ {
-          publish := <-ck.Receive
-          if vals[iters] != publish.Value {
+          publish = <-ck.Receive
+          if vals[iters] != publish.PutValue() {
             t.Fatalf("Pub/sub received=%s, expected=%s", publish, vals[iters])
           }
         }
 
         ck.Unsubscribe(key)
+        publish = <-ck.Receive
+        if publish.Key() != key {
+          t.Fatalf("Unsubscribed from wrong key")
+        }
         close(ck.Receive)
       }
 
@@ -481,6 +491,12 @@ func TestPubSubJoin(t *testing.T) {
 
   // Subscribe from key
   ck.Subscribe("d")
+  fmt.Println("asdasaa")
+  v := <-ck.Receive
+  fmt.Println("asdasaaasdasd")
+  if v.Key() != "d" {
+    t.Fatalf("Subscribed to wrong key")
+  }
 
   // Put random keys
   ck.Put("a", "x")
@@ -489,8 +505,8 @@ func TestPubSubJoin(t *testing.T) {
 
   // Should receive changes to key=d
   ck.Put("d", "x")
-  v := <-ck.Receive
-  if v.Value != "x" {
+  v = <-ck.Receive
+  if v.PutValue() != "x" {
     t.Fatalf("Receive got the wrong value")
   }
 
@@ -500,6 +516,11 @@ func TestPubSubJoin(t *testing.T) {
 
   // Unsubscribe from key
   ck.Unsubscribe("d")
+
+  v = <-ck.Receive
+  if v.Key() != "d" {
+    t.Fatalf("Unsubscribed from wrong key")
+  }
 
   // Close receive channel
   close(ck.Receive)
@@ -527,6 +548,11 @@ func TestPubSubMove(t *testing.T) {
 
   ck.Subscribe("d")
 
+  v := <-ck.Receive
+  if v.Key() != "d" {
+    t.Fatalf("Subscribed to wrong key")
+  }
+
   for i := 0; i < shardmaster.NShards; i++ {
     val := string('0' + i)
 
@@ -536,8 +562,8 @@ func TestPubSubMove(t *testing.T) {
     ck.Put("c", "ccx")
 
     ck.Put("d", val)
-    v := <-ck.Receive
-    if v.Value != val {
+    v = <-ck.Receive
+    if v.PutValue() != val {
       t.Fatalf("Receive got the wrong value")
     }
     mck.Move(0, gids[rand.Int()%len(gids)])
@@ -545,6 +571,11 @@ func TestPubSubMove(t *testing.T) {
 
   // Unsubscribe from key
   ck.Unsubscribe("d")
+
+  v = <-ck.Receive
+  if v.Key() != "d" {
+    t.Fatalf("Unsubscribed from wrong key")
+  }
 
   close(ck.Receive)
 

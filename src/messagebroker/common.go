@@ -4,6 +4,8 @@ import "net/rpc"
 import "fmt"
 import "time"
 
+type Err string
+
 const (
   OK                = "OK"
   ErrAlreadyApplied = "ErrAlreadyApplied"
@@ -11,45 +13,81 @@ const (
   ErrNoOp           = "ErrNoOp"
 )
 
-type Err string
+type Operation string
 
 const (
-  Notify = "Notify"
-  Noop   = "Noop"
+  Noop            = "Noop"
+  NotifyPut       = "NotifyPut"
+  NotifySubscribe = "NotifySubscribe"
 )
-
-type Operation string
 
 type Op struct {
   Operation Operation
   Args      interface{}
-  Version   int64
   Key       string
+  Version   int64
 }
 
-type Result struct {
-  Args interface{}
-  Err  Err
-}
+type PublishType int
+
+const (
+  Subscribe = iota
+  Put       = iota
+)
 
 type PublishArgs struct {
-  Key        string
-  Value      string
-  ReqId      string
-  Expiration time.Time
+  Type          PublishType
+  ReqId         string
+  SubscribeArgs NotifySubscribeArgs
+  PutArgs       NotifyPutArgs
 }
 
 type PublishReply struct {
   Err Err
 }
 
-type NotifyArgs struct {
-  Version     int64
-  PublishArgs PublishArgs
-  Subscribers map[string]bool
+func (args *PublishArgs) PutValue() string {
+  if args.Type == Put {
+    return args.PutArgs.Value
+  }
+  return ""
 }
 
-type NotifyReply struct {
+func (args *PublishArgs) Key() string {
+  if args.Type == Subscribe {
+    return args.SubscribeArgs.Key
+  }
+  if args.Type == Put {
+    return args.PutArgs.Key
+  }
+  return ""
+}
+
+type NotifySubscribeArgs struct {
+  Key     string
+  Version int64
+  ReqId   string
+
+  Address     string
+  Unsubscribe bool // True to unsubscribe
+}
+
+type NotifySubscribeReply struct {
+  Err Err
+}
+
+type NotifyPutArgs struct {
+  Key     string
+  Version int64
+  ReqId   string
+
+  Value      string // Before PutHash (if any)
+  PrevValue  string
+  DoHash     bool   // For PutHash
+  Expiration time.Time
+}
+
+type NotifyPutReply struct {
   Err Err
 }
 
