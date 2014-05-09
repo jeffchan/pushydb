@@ -390,7 +390,7 @@ func doConcurrent(t *testing.T, unreliable bool, subscribe bool) {
     }
   }
 
-  time.Sleep(1 * time.Second)
+  time.Sleep(10 * time.Second)
   for i := 0; i < npara; i++ {
     cleanupClerk(clerks[i])
   }

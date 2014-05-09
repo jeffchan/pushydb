@@ -91,12 +91,8 @@ func nrand() int64 {
 }
 
 func (ck *Clerk) Publish(args *PublishArgs, reply *PublishReply) error {
-
-  fmt.Printf("[c] publish prelock key=%s, type=%d\n", args.Key(), args.Type)
-
   ck.mu.Lock()
   defer ck.mu.Unlock()
-  fmt.Printf("[c] publish gotlock key=%s, type=%d\n", args.Key(), args.Type)
 
   reqId := args.ReqId
   _, ok := ck.dups[reqId]
@@ -107,7 +103,6 @@ func (ck *Clerk) Publish(args *PublishArgs, reply *PublishReply) error {
 
   reply.Err = OK
 
-  fmt.Printf("[c] publish release key=%s, type=%d\n", args.Key(), args.Type)
   return nil
 }
 
