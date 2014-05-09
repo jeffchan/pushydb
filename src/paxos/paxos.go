@@ -33,7 +33,7 @@ import "math"
 
 const (
   Log          = true
-  PingInterval = 2000
+  PingInterval = 100
 )
 
 type Paxos struct {
@@ -332,7 +332,6 @@ func (px *Paxos) Start(seq int, v interface{}) {
     return
   }
 
-  // go px.Propose(seq, v)
   leader := px.GetLeader()
   if leader == px.me {
     go px.Propose(seq, v)
@@ -344,6 +343,19 @@ func (px *Paxos) Start(seq int, v interface{}) {
       go px.Propose(seq, v)
     }
   }
+
+  // leader := 0
+  // if leader == px.me {
+  //   go px.Propose(seq, v)
+  // } else {
+  //   args := StartArgs{seq, v}
+  //   var reply StartReply
+  //   ok := call(px.peers[leader], "Paxos.Startpls", &args, &reply)
+  //   if !ok {
+  //     go px.Propose(seq, v)
+  //   }
+  // }
+
 }
 
 func (px *Paxos) Startpls(args *StartArgs, reply *StartReply) error {
@@ -461,14 +473,22 @@ func (px *Paxos) Kill() {
 //
 //
 func (px *Paxos) Tick() {
-  // fmt.Printf("[%d] Tick called\n", px.me)
   for !px.dead {
+    // px.mu.Lock()
+    // count := 0
+    // for _, seq := range px.log {
+    //   if seq.decidedVal == nil {
+    //     count += 1
+    //   }
+    // }
+    // fmt.Printf("[%d] %d undecided instances\n", px.me, count)
+    // px.mu.Unlock()
+
     // increment everything
     for i, _ := range px.peerTracker {
       px.peerTracker[i] += 1
     }
     // if any people above me recently pinged they are leader, otherwise I am
-    // fmt.Printf("[%d] peer tracker: %+v\n", px.me, px.peerTracker)
     check := true
     for i := px.me + 1; i < len(px.peerTracker); i++ {
       if px.peerTracker[i] < 2 {
@@ -476,10 +496,8 @@ func (px *Paxos) Tick() {
       }
     }
     if check {
-      // fmt.Printf("[%d] I am leader\n", px.me)
       px.iAmLeader = true
     } else {
-      // fmt.Printf("[%d] I am not leader\n", px.me)
       px.iAmLeader = false
     }
     // ping everybody
@@ -496,6 +514,15 @@ func (px *Paxos) Tick() {
         allCount++
       }
     }
+    // if !px.iAmLeader {
+    //   args := PlsArgs{}
+    //   var reply PlsReply
+    //   ok := call(px.peers[px.GetLeader()], "Paxos.Pls", &args, &reply)
+    //   if ok {
+    //     px.logreply.log
+    //   }
+    // }
+
     // Free memory if common highest done seq consensus
     if allCount == len(px.peers) {
       px.free(min)
@@ -528,12 +555,11 @@ func (px *Paxos) Pusher() {
     px.mu.Lock()
     for i, s := range px.log {
       if s.decidedVal == nil {
-        // fmt.Printf("[PAXOS] %d: PUSHER: pushing seq %d\n", px.me, i)
         go px.Propose(i, s.acceptedVal)
       }
     }
     px.mu.Unlock()
-    time.Sleep(100 * time.Millisecond)
+    time.Sleep(PingInterval * time.Millisecond)
   }
 }
 
