@@ -30,6 +30,7 @@ import "fmt"
 import "math/rand"
 import "time"
 import "math"
+import "pdb"
 
 const (
   Log = false
@@ -49,6 +50,7 @@ type Paxos struct {
   log            map[int]*Instance
   highestDone    int
   highestDoneAll int
+  pdb PDB
 }
 
 type Instance struct {
@@ -91,6 +93,9 @@ func (px *Paxos) Propose(seq int, val interface{}) {
     var maxVal interface{}
     prepareCount := 0
     for _, srv := range px.peers {
+      if prepareCount >= px.majority {
+        break
+      }
       args := PrepareArgs{seq, n}
       var reply PrepareReply
       reply.Seq = seq
@@ -101,9 +106,6 @@ func (px *Paxos) Propose(seq int, val interface{}) {
           maxVal = reply.Val
         }
         prepareCount++
-      }
-      if prepareCount >= px.majority {
-        break
       }
     }
 
@@ -427,6 +429,11 @@ func Make(peers []string, me int, rpcs *rpc.Server) *Paxos {
   px.majority = (len(peers) / 2) + 1
   px.highestDone = -1
   px.highestDoneAll = -1
+
+  ///////////////////////////////////
+  // start the PDB
+  ///////////////////////////////////
+  px.pdb = pdb.Make()
 
   px.log = make(map[int]*Instance)
 
