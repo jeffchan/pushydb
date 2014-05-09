@@ -28,6 +28,7 @@ const (
 type Err string
 
 type Entry struct {
+  Version     int64
   Value       string
   Expiration  time.Time
   Subscribers map[string]bool
@@ -35,12 +36,14 @@ type Entry struct {
 
 func NewEntry() *Entry {
   return &Entry{
+    Version:     0,
     Subscribers: make(map[string]bool),
   }
 }
 
 func (entry *Entry) Clone() *Entry {
   return &Entry{
+    Version:     entry.Version,
     Value:       entry.Value,
     Expiration:  entry.Expiration,
     Subscribers: CopySubscribers(entry.Subscribers),

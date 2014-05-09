@@ -3,6 +3,7 @@
 
 trap "echo Exited!; exit;" SIGINT SIGTERM
 
+rm -r out
 mkdir -p out
 
 for i in $(seq 0 1000);

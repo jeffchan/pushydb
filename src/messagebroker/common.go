@@ -2,6 +2,7 @@ package messagebroker
 
 import "net/rpc"
 import "fmt"
+import "time"
 
 const (
   OK                = "OK"
@@ -22,8 +23,8 @@ type Operation string
 type Op struct {
   Operation Operation
   Args      interface{}
-  Seq       int
-  GID       int64
+  Version   int64
+  Key       string
 }
 
 type Result struct {
@@ -32,9 +33,10 @@ type Result struct {
 }
 
 type PublishArgs struct {
-  Key   string
-  Value string
-  ReqId string
+  Key        string
+  Value      string
+  ReqId      string
+  Expiration time.Time
 }
 
 type PublishReply struct {
@@ -42,8 +44,7 @@ type PublishReply struct {
 }
 
 type NotifyArgs struct {
-  GID         int64
-  Seq         int
+  Version     int64
   PublishArgs PublishArgs
   Subscribers map[string]bool
 }

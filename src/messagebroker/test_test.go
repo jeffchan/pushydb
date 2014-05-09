@@ -62,13 +62,13 @@ func TestBasic(t *testing.T) {
   defer cleanupClerk(clerk)
 
   pubArgs := PublishArgs{
-    Key:   "a",
-    Value: "x",
-    ReqId: "basic",
+    Key:        "a",
+    Value:      "x",
+    ReqId:      "basic",
+    Expiration: time.Now(),
   }
   args := &NotifyArgs{
-    GID:         0,
-    Seq:         0,
+    Version:     0,
     PublishArgs: pubArgs,
     Subscribers: map[string]bool{addr: true},
   }
@@ -100,9 +100,10 @@ func TestMany(t *testing.T) {
   pubArgs := make([]PublishArgs, 0, npublish)
   for i := 0; i < npublish; i++ {
     pubArg := PublishArgs{
-      Key:   "a",
-      Value: strconv.Itoa(i),
-      ReqId: "many-" + strconv.Itoa(i+1),
+      Key:        "a",
+      Value:      strconv.Itoa(i),
+      ReqId:      "many-" + strconv.Itoa(i+1),
+      Expiration: time.Now(),
     }
     pubArgs = append(pubArgs, pubArg)
   }
@@ -110,8 +111,7 @@ func TestMany(t *testing.T) {
   notifyArgs := make([]*NotifyArgs, 0, npublish)
   for i := 0; i < npublish; i++ {
     notifyArg := &NotifyArgs{
-      GID:         0,
-      Seq:         i + 1,
+      Version:     int64(i + 1),
       PublishArgs: pubArgs[i],
       Subscribers: map[string]bool{addr: true},
     }
@@ -125,6 +125,74 @@ func TestMany(t *testing.T) {
     if pub != pubArgs[i] {
       t.Fatalf("Wrong publication; expected %s, got %s", pubArgs[i], pub)
     }
+  }
+
+  fmt.Printf(" ...Passed\n")
+}
+
+// Test separate gid's and same sequence
+func TestGroups(t *testing.T) {
+  _, mbservers, clean := setup("groups", false)
+  defer clean()
+
+  fmt.Printf("Test: Many different groups notify -> publish...\n")
+
+  addr := port("groups-clerk", 0)
+  publications := make(chan PublishArgs)
+  clerk := MakeClerk(addr, publications)
+  defer cleanupClerk(clerk)
+
+  npublish := 20
+  ngroups := 4
+
+  gids := make([]int, 0, npublish)
+  for i := 0; i < npublish; i++ {
+    gids = append(gids, i%ngroups)
+  }
+
+  pubArgs := make([]PublishArgs, 0, npublish)
+  for i := 0; i < npublish; i++ {
+    pubArg := PublishArgs{
+      Key:        strconv.Itoa(gids[i]),     // aka the group id's
+      Value:      strconv.Itoa(i / ngroups), // aka the value of the sequence
+      ReqId:      "groups-" + strconv.Itoa(i+1),
+      Expiration: time.Now(),
+    }
+    pubArgs = append(pubArgs, pubArg)
+  }
+
+  // creates gids to be                     [0 1 2 3 0 1 2 3 0 1 2 3 0 1 2 3 0 1 2 3]
+  // creates publish args to have keys      [0 1 2 3 ... ]
+  // creates publish args to have values    [0 0 0 0 1 1 1 1 ... ]
+  // creates notify args to have sequences  [0 0 0 0 1 1 1 1 2 2 2 2 3 3 3 3 4 4 4 4]
+  notifyArgs := make([]*NotifyArgs, 0, npublish)
+  for i := 0; i < npublish; i++ {
+    notifyArg := &NotifyArgs{
+      Version:     int64(i / ngroups),
+      PublishArgs: pubArgs[i],
+      Subscribers: map[string]bool{addr: true},
+    }
+    notifyArgs = append(notifyArgs, notifyArg)
+  }
+
+  var reply NotifyReply
+  for i := 0; i < ngroups; i++ {
+    go func(gid int) {
+      for j := 0; j < npublish/ngroups; j++ {
+        mbservers[rand.Int()%len(mbservers)].Notify(notifyArgs[j*ngroups+gid], &reply)
+      }
+    }(i)
+  }
+
+  lasts := []int{-1, -1, -1, -1}
+  for i := 0; i < npublish; i++ {
+    pub := <-publications
+    index, _ := strconv.Atoi(pub.Key)
+    value, _ := strconv.Atoi(pub.Value)
+    if lasts[index]+1 != value {
+      t.Fatalf("Wrong publication; expected key/value %s:%s, got key/value %s:%s", index, lasts[index]+1, index, value)
+    }
+    lasts[index] += 1
   }
 
   fmt.Printf(" ...Passed\n")
