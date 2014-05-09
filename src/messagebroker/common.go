@@ -64,6 +64,13 @@ func (args *PublishArgs) Key() string {
   return ""
 }
 
+func (args *PublishArgs) Addr() string {
+  if args.Type == Subscribe {
+    return args.SubscribeArgs.Address
+  }
+  return ""
+}
+
 type NotifySubscribeArgs struct {
   Key     string
   Version int64

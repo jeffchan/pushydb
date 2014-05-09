@@ -15,7 +15,7 @@ import "time"
 import "reflect"
 
 const (
-  ServerLog           = false
+  ServerLog           = true
   InitTimeout         = 10 * time.Millisecond
   ClientRetryInterval = 100 * time.Millisecond
 )
@@ -245,17 +245,22 @@ func (mb *MBServer) applyNotifySubscribe(args NotifySubscribeArgs) Err {
     mb.mu.Lock()
     mb.subscribers[addr] = s
     mb.mu.Unlock()
+  }
 
+  if !unsub {
+    mb.log("applying subscribe for key=%s ver=%d", key, version)
     start := s.Subscribe(key, args.Version)
     if start {
       go mb.publish(addr, s, s.QuitChan)
     }
-  } else if unsub {
+  } else {
+    mb.log("applying unsubscribe for key=%s ver=%d", key, version)
     done := false
     for !done {
       done = s.Next[key] == version+1
       time.Sleep(50 * time.Millisecond)
     }
+    mb.log("finish applying unsubscribe for key=%s", key)
     end := s.Unsubscribe(key)
     if end {
       s.QuitChan <- true
@@ -269,30 +274,35 @@ func (mb *MBServer) applyNotifySubscribe(args NotifySubscribeArgs) Err {
 
 func (mb *MBServer) publish(addr string, s *Subscriber, quit chan bool) {
   dummy := make(chan bool)
-  mb.log("start go routine1")
   go func() { dummy <- true }()
-  mb.log("start go routine2")
   for !mb.dead {
     select {
     case <-dummy:
       for key, next := range s.Next {
-        buffer, exists := mb.getBuffer(key, next)
-        mb.log("lets find key=%s, ver=%d, exists=%b", key, next, exists)
+        args, exists := mb.getBuffer(key, next)
         if !exists {
           continue
         }
 
-        var reply PublishReply
-        ok := call(addr, "Clerk.Publish", buffer, &reply)
-        if ok && reply.Err == OK {
-          mb.log("successfully ok")
+        // Ignore other client's sub/unsub
+        if args.Type == Subscribe && args.Addr() != addr {
           s.Next[key] = next + 1
+          continue
         }
 
+        mb.log("publishing key=%s, ver=%d, type=%s", key, next, args.Type)
+
+        var reply PublishReply
+        ok := call(addr, "Clerk.Publish", args, &reply)
+        if ok && reply.Err == OK {
+          mb.log("published key=%s, ver=%d", key, next)
+          s.Next[key] = next + 1
+        }
       }
       time.Sleep(50 * time.Millisecond)
       go func() { dummy <- true }()
     case <-quit:
+      mb.log("quitting for client=%s", addr)
       return
     }
   }
@@ -367,8 +377,6 @@ func (mb *MBServer) setBuffer(key string, ver int64, args *PublishArgs) {
     mb.buffer[key] = make(map[int64]*PublishArgs)
   }
   mb.buffer[key][ver] = args
-
-  mb.log("SET ver=%d", ver)
 }
 
 func (mb *MBServer) getBuffer(key string, ver int64) (*PublishArgs, bool) {
@@ -408,9 +416,9 @@ func (mb *MBServer) logSync() {
       mb.mu.Unlock()
 
       if err != ErrAlreadyApplied {
-        mb.log("Applied %s of Notify.Version=%d", op.Operation, op.Version)
+        // mb.log("Applied %s of Notify.Version=%d", op.Operation, op.Version)
       } else {
-        mb.log("Already applied %s of Notify.Version=%d", op.Operation, op.Version)
+        // mb.log("Already applied %s of Notify.Version=%d", op.Operation, op.Version)
       }
 
       // reset timeout

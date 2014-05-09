@@ -28,20 +28,6 @@ type Clerk struct {
   pending []*PublishArgs
 }
 
-func GetValue(args *PublishArgs) string {
-  if args.Type == Put {
-    return args.PutArgs.Value
-  }
-  return ""
-}
-
-func GetSubscribedKey(args *PublishArgs) string {
-  if args.Type == Subscribe {
-    return args.SubscribeArgs.Key
-  }
-  return ""
-}
-
 func MakeClerk(me string, publish chan PublishArgs) *Clerk {
   ck := new(Clerk)
   ck.me = me
@@ -105,8 +91,12 @@ func nrand() int64 {
 }
 
 func (ck *Clerk) Publish(args *PublishArgs, reply *PublishReply) error {
+
+  fmt.Printf("[c] publish prelock key=%s, type=%d\n", args.Key(), args.Type)
+
   ck.mu.Lock()
   defer ck.mu.Unlock()
+  fmt.Printf("[c] publish gotlock key=%s, type=%d\n", args.Key(), args.Type)
 
   reqId := args.ReqId
   _, ok := ck.dups[reqId]
@@ -116,14 +106,18 @@ func (ck *Clerk) Publish(args *PublishArgs, reply *PublishReply) error {
   }
 
   reply.Err = OK
+
+  fmt.Printf("[c] publish release key=%s, type=%d\n", args.Key(), args.Type)
   return nil
 }
 
 func (ck *Clerk) process() {
   for !ck.dead {
     if len(ck.pending) > 0 {
+      ck.mu.Lock()
       notification := ck.pending[0]
       ck.pending = ck.pending[1:]
+      ck.mu.Unlock()
       ck.publish <- *notification
     }
     time.Sleep(50 * time.Millisecond)

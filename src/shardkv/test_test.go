@@ -315,13 +315,14 @@ func doConcurrent(t *testing.T, unreliable bool, subscribe bool) {
 
   const npara = 11
   var ca [npara]chan bool
+  clerks := make([]*Clerk, npara)
   for i := 0; i < npara; i++ {
     ca[i] = make(chan bool)
-    go func(me int) {
+    go func(me int, clerks []*Clerk) {
       ok := true
       defer func() { ca[me] <- ok }()
       ck := MakeClerk(smh)
-      defer cleanupClerk(ck)
+      clerks[me] = ck
       mymck := shardmaster.MakeClerk(smh)
       key := strconv.Itoa(me)
       last := ""
@@ -330,6 +331,7 @@ func doConcurrent(t *testing.T, unreliable bool, subscribe bool) {
         ck.Subscribe(key)
         publish := <-ck.Receive
         if publish.Key() != key {
+          ok = false
           t.Fatalf("Subscribed to wrong key")
         }
       }
@@ -364,6 +366,7 @@ func doConcurrent(t *testing.T, unreliable bool, subscribe bool) {
         for iters := 0; iters < count; iters++ {
           publish = <-ck.Receive
           if vals[iters] != publish.PutValue() {
+            ok = false
             t.Fatalf("Pub/sub received=%s, expected=%s", publish, vals[iters])
           }
         }
@@ -371,12 +374,13 @@ func doConcurrent(t *testing.T, unreliable bool, subscribe bool) {
         ck.Unsubscribe(key)
         publish = <-ck.Receive
         if publish.Key() != key {
+          ok = false
           t.Fatalf("Unsubscribed from wrong key")
         }
         close(ck.Receive)
       }
 
-    }(i)
+    }(i, clerks)
   }
 
   for i := 0; i < npara; i++ {
@@ -384,6 +388,11 @@ func doConcurrent(t *testing.T, unreliable bool, subscribe bool) {
     if x == false {
       t.Fatalf("something is wrong")
     }
+  }
+
+  time.Sleep(1 * time.Second)
+  for i := 0; i < npara; i++ {
+    cleanupClerk(clerks[i])
   }
 }
 
