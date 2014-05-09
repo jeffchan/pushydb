@@ -25,7 +25,9 @@ func TestBasic(t *testing.T) {
   for i, val := range vals {
     pdb.PutGob("paxos", i, "blah", val)
   }
-
+  if first(pdb.GetGob("paxos", 4, "blah") != point) {
+    t.Falatf("Wrong struct!")
+  }
   if first(pdb.GetString("paxos", 0, "blah")) != "A" {
     t.Fatalf("Wrong string!")
   }

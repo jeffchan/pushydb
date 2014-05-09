@@ -137,8 +137,19 @@ func (pdb *PDB) PutGob(keyval ...interface{}) {
   value := keyval[len(keyval) - 1]
   err := pdb.db.Put(getKeyBytes(key...), getBytesGob(value), &opt.WriteOptions{true})
   if err != nil {
-    log.Fatal("Put to db failed!", err)
+    log.Fatal("Put to db failed:", err)
   }
+}
+
+func (pdb *PDB) GetGob(keyval ...interface{}) (interface{}, bool) {
+  data, err := pdb.db.Get(getKeyBytes(key...), nil)
+  var dest interface{}
+  dec := gob.NewDecoder(buffer)
+  err2 := dec.Decode(dest)
+  if err != nil || err2 != nil {
+    log.Fatal("Get from db failed:", err, err2)
+  }
+  return 
 }
 
 
