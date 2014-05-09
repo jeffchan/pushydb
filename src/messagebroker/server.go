@@ -15,7 +15,7 @@ import "time"
 import "reflect"
 
 const (
-  ServerLog           = true
+  ServerLog           = false
   InitTimeout         = 10 * time.Millisecond
   ClientRetryInterval = 100 * time.Millisecond
 )
@@ -248,19 +248,16 @@ func (mb *MBServer) applyNotifySubscribe(args NotifySubscribeArgs) Err {
   }
 
   if !unsub {
-    mb.log("applying subscribe for key=%s ver=%d", key, version)
     start := s.Subscribe(key, args.Version)
     if start {
       go mb.publish(addr, s, s.QuitChan)
     }
   } else {
-    mb.log("applying unsubscribe for key=%s ver=%d", key, version)
     done := false
     for !done {
       done = s.Next[key] == version+1
       time.Sleep(50 * time.Millisecond)
     }
-    mb.log("finish applying unsubscribe for key=%s", key)
     end := s.Unsubscribe(key)
     if end {
       s.QuitChan <- true
@@ -290,19 +287,15 @@ func (mb *MBServer) publish(addr string, s *Subscriber, quit chan bool) {
           continue
         }
 
-        mb.log("publishing key=%s, ver=%d, type=%s", key, next, args.Type)
-
         var reply PublishReply
         ok := call(addr, "Clerk.Publish", args, &reply)
         if ok && reply.Err == OK {
-          mb.log("published key=%s, ver=%d", key, next)
           s.Next[key] = next + 1
         }
       }
       time.Sleep(50 * time.Millisecond)
       go func() { dummy <- true }()
     case <-quit:
-      mb.log("quitting for client=%s", addr)
       return
     }
   }
