@@ -32,7 +32,7 @@ import "time"
 import "math"
 
 const (
-  MultiPaxosOn = false
+  MultiPaxosOn = true
   Log          = true
   PingInterval = 100
 )

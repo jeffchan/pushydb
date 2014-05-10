@@ -62,7 +62,7 @@ func TestBasic(t *testing.T) {
     pubArgs := messagebroker.PublishArgs{
       Key:        "a",
       Value:      strconv.Itoa(i),
-      ReqId:      "basic"+strconv.Itoa(i),
+      ReqId:      "basic" + strconv.Itoa(i),
       Expiration: time.Now(),
     }
     args := &messagebroker.NotifyArgs{
