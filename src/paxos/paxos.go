@@ -55,8 +55,8 @@ type Paxos struct {
 }
 
 type Instance struct {
-  seq        int
-  decidedVal interface{}
+  seq             int
+  decidedVal      interface{}
   ProposerRunning bool
 
   // Acceptor's state
@@ -156,20 +156,20 @@ func (px *Paxos) Propose(seq int, val interface{}) {
     for _, srv := range px.peers {
       // for !px.dead{
       //   fmt.Println(seq)
-        args := DecidedArgs{seq, maxVal}
-        var reply DecidedReply
-        reply.Seq = seq
-        ok := px.call(srv, "Decided", &args, &reply)
-        if ok && reply.HighestDoneSeq != -1 {
-          if reply.HighestDoneSeq < min {
-            min = reply.HighestDoneSeq
-          }
-          allCount++
+      args := DecidedArgs{seq, maxVal}
+      var reply DecidedReply
+      reply.Seq = seq
+      ok := px.call(srv, "Decided", &args, &reply)
+      if ok && reply.HighestDoneSeq != -1 {
+        if reply.HighestDoneSeq < min {
+          min = reply.HighestDoneSeq
         }
-        // if ok {
-        //   break
-        // }
-        // time.Sleep(time.Millisecond*100)
+        allCount++
+      }
+      // if ok {
+      //   break
+      // }
+      // time.Sleep(time.Millisecond*100)
       // }
     }
 

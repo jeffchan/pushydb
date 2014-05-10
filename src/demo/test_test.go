@@ -58,7 +58,7 @@ func TestBasic(t *testing.T) {
 
   demo := MakeDemo()
 
-  for i:=0; i<20; i++ {
+  for i := 0; i < 20; i++ {
     pubArgs := messagebroker.PublishArgs{
       Key:        "a",
       Value:      strconv.Itoa(i),
