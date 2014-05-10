@@ -2,6 +2,7 @@ package main
 
 import "testing"
 import "fmt"
+import "encoding/gob"
 
 type Data struct {
   Field1 int64
@@ -9,48 +10,38 @@ type Data struct {
   Field3 string
 }
 
-func first(args ...interface{})interface{} {
-    return args[0]
-}
-
-func second(args ...interface{})interface{} {
-    return args[1]
+func chk(t *testing.T, ok bool, val interface{}, true_val interface{}) {
+  if !ok {
+    t.Fatalf("Key not found!")
+  }
+  if val != true_val {
+    t.Fatalf("Expected ", true_val, " got ", val)
+  }
 }
 
 func TestBasic(t *testing.T) {
+
   Delete()
   pdb := Make()
   point := Data{1, 2, "hello"}
+  gob.Register(Data{})
+  gob.Register("ok")
   vals := []interface{}{"A", int(21), int64(22), true, point}
   for i, val := range vals {
-    pdb.PutGob("paxos", i, "blah", val)
+    pdb.Put("paxos", i, "blah", val)
   }
-  if first(pdb.GetGob("paxos", 4, "blah") != point) {
-    t.Falatf("Wrong struct!")
-  }
-  if first(pdb.GetString("paxos", 0, "blah")) != "A" {
-    t.Fatalf("Wrong string!")
-  }
-  if first(pdb.GetInt("paxos", 1, "blah")) != int(21) {
-    t.Fatalf("Wrong   int!")
-  }
-  if first(pdb.GetInt64("paxos", 2, "blah")) != int64(22) {
-    t.Fatalf("Wrong int64!")
-  }
-  if first(pdb.GetBool("paxos", 3, "blah")) != true {
-    t.Fatalf("Wrong bool!")
-  }
-  if second(pdb.GetBool("paxos", 5, "blah")) != false {
-    t.Fatalf("Not found error not working in GetBool!")
-  }
-  if second(pdb.GetInt("paxos", 5, "blah")) != false {
-    t.Fatalf("Not found error not working in GetInt!")
-  }
-  if second(pdb.GetString("paxos", 5, "blah")) != false {
-    t.Fatalf("Not found error not working in GetString!")
-  }
-  if second(pdb.GetInt64("paxos", 5, "blah")) != false {
-    t.Fatalf("Not found error not working in GetInt64!")
+  // Amazingly, go doesn't let you write a for loop for this. Amazing.
+  val := ""
+  true_val := "A"
+  ok := pdb.Get("paxos", 0, "blah", &val)
+  chk(t, ok, val, true_val)
+  // XX A couple missing assertions(Blame go.)
+  val4 := Data{}
+  true_val4 := point
+  ok = pdb.Get("paxos", 4, "blah", &val4)
+  chk(t, ok, val4, true_val4)
+  if pdb.Get("paxos", -1, "blah", Data{}) != false {
+    t.Fatalf("Expected key to not be found!")
   }
   fmt.Println("Passed!")
   Delete()
