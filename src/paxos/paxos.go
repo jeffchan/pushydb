@@ -570,7 +570,7 @@ func Make(peers []string, me int, rpcs *rpc.Server) *Paxos {
   ///////////////////////////////////
   // start the PDB
   ///////////////////////////////////
-  px.pdb = pdb.Make()
+  // px.pdb = pdb.Make()
 
   px.log = make(map[int]*Instance)
 

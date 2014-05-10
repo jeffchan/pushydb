@@ -92,10 +92,10 @@ func Make() *PDB {
 
 func (pdb *PDB) open() {
   db, err := leveldb.OpenFile(DB_PATH, nil)
-  pdb.db = *db
   if err != nil {
-    log.Fatal("Error opening db!", err)
+    log.Fatalf("Error opening db! %s\n", err)
   }
+  pdb.db = *db
 }
 
 func (pdb *PDB) Close() {
