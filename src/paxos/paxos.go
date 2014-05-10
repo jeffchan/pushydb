@@ -53,8 +53,10 @@ type Paxos struct {
   highestDone    int
   highestDoneAll int
 
-  iAmLeader      bool
-  peerTracker    []int
+  iAmLeader   bool
+  peerTracker []int
+
+  pdb *pdb.PDB
 }
 
 type Instance struct {

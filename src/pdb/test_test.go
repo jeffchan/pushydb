@@ -1,4 +1,4 @@
-package main
+package pdb
 
 import "testing"
 import "fmt"

@@ -1,12 +1,12 @@
-package main
+package pdb
 
 import (
   "bytes"
+  "encoding/gob"
   leveldb "github.com/syndtr/goleveldb/leveldb"
   opt "github.com/syndtr/goleveldb/leveldb/opt"
   "log"
   "os"
-  "encoding/gob"
 )
 
 const (
@@ -38,7 +38,7 @@ type PDB struct {
 
 func getKeyBytes(vals ...interface{}) []byte {
   ans := make([]byte, 0)
-  for _, val := range(vals) {
+  for _, val := range vals {
     ans = append(ans, getBytes(val)...)
   }
   return ans
@@ -70,8 +70,8 @@ func (pdb *PDB) Get(keyval ...interface{}) bool {
   if len(keyval) < 2 {
     log.Fatal("Need key value pair!")
   }
-  key := keyval[:len(keyval) - 1]
-  value := keyval[len(keyval) - 1]
+  key := keyval[:len(keyval)-1]
+  value := keyval[len(keyval)-1]
   data, err := pdb.db.Get(getKeyBytes(key...), nil)
   if err == leveldb.ErrNotFound {
     return false
