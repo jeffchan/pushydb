@@ -33,7 +33,7 @@ import "math"
 import "pdb"
 
 const (
-  MultiPaxosOn = true
+  MultiPaxosOn = false
   Log          = true
   PingInterval = 100
 )
