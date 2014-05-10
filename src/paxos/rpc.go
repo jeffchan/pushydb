@@ -60,7 +60,7 @@ type PingArgs struct {
   ID int // index into peers
 }
 type PingReply struct {
-  Err Err
+  Err            Err
   HighestDoneSeq int
 }
 

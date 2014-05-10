@@ -37,7 +37,7 @@ type PDB struct {
 // Represents int/int64/string objects as byte array
 func getKeyBytes(vals ...interface{}) []byte {
   ans := make([]byte, 0)
-  for _, val := range(vals) {
+  for _, val := range vals {
     var temp []byte
     var err interface{}
     var id byte
@@ -83,13 +83,12 @@ func getBytes(val interface{}) []byte {
   return buf.Bytes()
 }
 
-
 func (pdb *PDB) Put(keyval ...interface{}) {
   if len(keyval) < 2 {
     log.Fatal("Need key value pair!")
   }
-  key := keyval[:len(keyval) - 1]
-  value := keyval[len(keyval) - 1]
+  key := keyval[:len(keyval)-1]
+  value := keyval[len(keyval)-1]
   err := pdb.db.Put(getKeyBytes(key...), getBytes(value), &opt.WriteOptions{true})
   if err != nil {
     log.Fatal("Put to db failed!", err)

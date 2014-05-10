@@ -3,6 +3,7 @@ package demo
 import "fmt"
 import "messagebroker"
 import "net/http"
+
 // import "io/ioutil"
 import "net/url"
 
@@ -24,7 +25,7 @@ func MakeDemo() *Demo {
 
   go func() {
     for {
-      pub := <- demo.pubchan
+      pub := <-demo.pubchan
       fmt.Printf("Received notification- posting\n")
       postData(pub)
     }
