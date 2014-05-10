@@ -28,40 +28,27 @@ const (
 type Err string
 
 type Entry struct {
-  Version     int64
-  Value       string
-  Expiration  time.Time
-  Subscribers map[string]bool
+  Version    int64
+  Value      string
+  Expiration time.Time
 }
 
 func NewEntry() *Entry {
   return &Entry{
-    Version:     0,
-    Subscribers: make(map[string]bool),
+    Version: 0,
   }
 }
 
 func (entry *Entry) Clone() *Entry {
   return &Entry{
-    Version:     entry.Version,
-    Value:       entry.Value,
-    Expiration:  entry.Expiration,
-    Subscribers: CopySubscribers(entry.Subscribers),
+    Version:    entry.Version,
+    Value:      entry.Value,
+    Expiration: entry.Expiration,
   }
 }
 
 func (entry *Entry) IsExpired(refTime time.Time) bool {
   return !entry.Expiration.IsZero() && refTime.After(entry.Expiration)
-}
-
-func CopySubscribers(src map[string]bool) map[string]bool {
-  dst := make(map[string]bool)
-  for k, v := range src {
-    if v {
-      dst[k] = v
-    }
-  }
-  return dst
 }
 
 const (

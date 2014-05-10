@@ -33,7 +33,9 @@ import "math"
 import "pdb"
 
 const (
-  Log = false
+  MultiPaxosOn = true
+  Log          = true
+  PingInterval = 100
 )
 
 type Paxos struct {
@@ -50,12 +52,15 @@ type Paxos struct {
   log            map[int]*Instance
   highestDone    int
   highestDoneAll int
-  pdb PDB
+
+  iAmLeader      bool
+  peerTracker    []int
 }
 
 type Instance struct {
-  seq        int
-  decidedVal interface{}
+  seq             int
+  decidedVal      interface{}
+  ProposerRunning bool
 
   // Acceptor's state
   prepareN    int64
@@ -85,6 +90,13 @@ func (px *Paxos) shortAddr() string {
 
 func (px *Paxos) Propose(seq int, val interface{}) {
   it := px.getInstance(seq)
+
+  if it.ProposerRunning {
+    return
+  } else {
+    it.ProposerRunning = true
+  }
+
   for it.decidedVal == nil && !px.dead {
     n := px.n()
 
@@ -218,6 +230,8 @@ func (px *Paxos) call(srv string, name string, args interface{}, reply interface
       px.Accept(args.(*AcceptArgs), reply.(*AcceptReply))
     } else if name == "Decided" {
       px.Decided(args.(*DecidedArgs), reply.(*DecidedReply))
+    } else if name == "Ping" {
+      px.Ping(args.(*PingArgs), reply.(*PingReply))
     } else {
       return false
     }
@@ -259,7 +273,7 @@ func call(srv string, name string, args interface{}, reply interface{}) bool {
     return true
   }
 
-  fmt.Println(err)
+  // fmt.Println(err)
   return false
 }
 
@@ -314,7 +328,32 @@ func (px *Paxos) Start(seq int, v interface{}) {
     return
   }
 
-  go px.Propose(seq, v)
+  if MultiPaxosOn {
+    leader := px.GetLeader()
+    if leader == px.me {
+      go px.Propose(seq, v)
+    } else {
+      args := StartArgs{seq, v}
+      var reply StartReply
+      ok := call(px.peers[leader], "Paxos.Startpls", &args, &reply)
+      if !ok {
+        go px.Propose(seq, v)
+      }
+    }
+  } else {
+    go px.Propose(seq, v)
+  }
+}
+
+func (px *Paxos) Startpls(args *StartArgs, reply *StartReply) error {
+  if args.Seq < px.Min() {
+    reply.Err = OK
+    return nil
+  }
+
+  go px.Propose(args.Seq, args.V)
+  reply.Err = OK
+  return nil
 }
 
 //
@@ -417,6 +456,101 @@ func (px *Paxos) Kill() {
 }
 
 //
+// Ping other servers to tell you that you're alive
+//
+//
+func (px *Paxos) Tick() {
+  for !px.dead {
+    // px.mu.Lock()
+    // count := 0
+    // for _, seq := range px.log {
+    //   if seq.decidedVal == nil {
+    //     count += 1
+    //   }
+    // }
+    // fmt.Printf("[%d] %d undecided instances\n", px.me, count)
+    // px.mu.Unlock()
+
+    // increment everything
+    for i, _ := range px.peerTracker {
+      px.peerTracker[i] += 1
+    }
+    // if any people above me recently pinged they are leader, otherwise I am
+    check := true
+    for i := px.me + 1; i < len(px.peerTracker); i++ {
+      if px.peerTracker[i] < 2 {
+        check = false
+      }
+    }
+    if check {
+      px.iAmLeader = true
+    } else {
+      px.iAmLeader = false
+    }
+    // ping everybody
+    min := math.MaxInt32
+    allCount := 0
+    for _, srv := range px.peers {
+      args := PingArgs{px.me}
+      var reply PingReply
+      ok := px.call(srv, "Ping", &args, &reply)
+      if ok && reply.HighestDoneSeq != -1 {
+        if reply.HighestDoneSeq < min {
+          min = reply.HighestDoneSeq
+        }
+        allCount++
+      }
+    }
+    // if !px.iAmLeader {
+    //   args := PlsArgs{}
+    //   var reply PlsReply
+    //   ok := call(px.peers[px.GetLeader()], "Paxos.Pls", &args, &reply)
+    //   if ok {
+    //     px.logreply.log
+    //   }
+    // }
+
+    // Free memory if common highest done seq consensus
+    if allCount == len(px.peers) {
+      px.free(min)
+    }
+    time.Sleep(PingInterval * time.Millisecond)
+  }
+}
+
+func (px *Paxos) Ping(args *PingArgs, reply *PingReply) error {
+  px.peerTracker[args.ID] = 0
+  reply.Err = OK
+  reply.HighestDoneSeq = px.highestDone // piggyback
+  return nil
+}
+
+func (px *Paxos) GetLeader() int {
+  leader := px.me
+  for i := px.me + 1; i < len(px.peerTracker); i++ {
+    if px.peerTracker[i] < 2 {
+      leader = i
+    }
+  }
+
+  return leader
+}
+
+// tries to clean up any remaining undecided instances by starting proposer on it
+func (px *Paxos) Pusher() {
+  for !px.dead {
+    px.mu.Lock()
+    for i, s := range px.log {
+      if s.decidedVal == nil {
+        go px.Propose(i, s.acceptedVal)
+      }
+    }
+    px.mu.Unlock()
+    time.Sleep(PingInterval * time.Millisecond)
+  }
+}
+
+//
 // the application wants to create a paxos peer.
 // the ports of all the paxos peers (including this one)
 // are in peers[]. this servers port is peers[me].
@@ -429,6 +563,7 @@ func Make(peers []string, me int, rpcs *rpc.Server) *Paxos {
   px.majority = (len(peers) / 2) + 1
   px.highestDone = -1
   px.highestDoneAll = -1
+  px.peerTracker = make([]int, len(peers))
 
   ///////////////////////////////////
   // start the PDB
@@ -436,6 +571,11 @@ func Make(peers []string, me int, rpcs *rpc.Server) *Paxos {
   px.pdb = pdb.Make()
 
   px.log = make(map[int]*Instance)
+
+  if MultiPaxosOn {
+    go px.Tick()
+    go px.Pusher()
+  }
 
   if rpcs != nil {
     // caller will create socket &c

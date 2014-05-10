@@ -315,19 +315,25 @@ func doConcurrent(t *testing.T, unreliable bool, subscribe bool) {
 
   const npara = 11
   var ca [npara]chan bool
+  clerks := make([]*Clerk, npara)
   for i := 0; i < npara; i++ {
     ca[i] = make(chan bool)
-    go func(me int) {
+    go func(me int, clerks []*Clerk) {
       ok := true
       defer func() { ca[me] <- ok }()
       ck := MakeClerk(smh)
-      defer cleanupClerk(ck)
+      clerks[me] = ck
       mymck := shardmaster.MakeClerk(smh)
       key := strconv.Itoa(me)
       last := ""
 
       if subscribe {
         ck.Subscribe(key)
+        publish := <-ck.Receive
+        if publish.Key() != key {
+          ok = false
+          t.Fatalf("Subscribed to wrong key")
+        }
       }
 
       count := 3
@@ -355,18 +361,26 @@ func doConcurrent(t *testing.T, unreliable bool, subscribe bool) {
       }
 
       if subscribe {
+        var publish messagebroker.PublishArgs
+
         for iters := 0; iters < count; iters++ {
-          publish := <-ck.Receive
-          if vals[iters] != publish.Value {
+          publish = <-ck.Receive
+          if vals[iters] != publish.PutValue() {
+            ok = false
             t.Fatalf("Pub/sub received=%s, expected=%s", publish, vals[iters])
           }
         }
 
         ck.Unsubscribe(key)
+        publish = <-ck.Receive
+        if publish.Key() != key {
+          ok = false
+          t.Fatalf("Unsubscribed from wrong key")
+        }
         close(ck.Receive)
       }
 
-    }(i)
+    }(i, clerks)
   }
 
   for i := 0; i < npara; i++ {
@@ -374,6 +388,11 @@ func doConcurrent(t *testing.T, unreliable bool, subscribe bool) {
     if x == false {
       t.Fatalf("something is wrong")
     }
+  }
+
+  time.Sleep(10 * time.Second)
+  for i := 0; i < npara; i++ {
+    cleanupClerk(clerks[i])
   }
 }
 
@@ -481,6 +500,10 @@ func TestPubSubJoin(t *testing.T) {
 
   // Subscribe from key
   ck.Subscribe("d")
+  v := <-ck.Receive
+  if v.Key() != "d" {
+    t.Fatalf("Subscribed to wrong key")
+  }
 
   // Put random keys
   ck.Put("a", "x")
@@ -489,8 +512,8 @@ func TestPubSubJoin(t *testing.T) {
 
   // Should receive changes to key=d
   ck.Put("d", "x")
-  v := <-ck.Receive
-  if v.Value != "x" {
+  v = <-ck.Receive
+  if v.PutValue() != "x" {
     t.Fatalf("Receive got the wrong value")
   }
 
@@ -500,6 +523,11 @@ func TestPubSubJoin(t *testing.T) {
 
   // Unsubscribe from key
   ck.Unsubscribe("d")
+
+  v = <-ck.Receive
+  if v.Key() != "d" {
+    t.Fatalf("Unsubscribed from wrong key")
+  }
 
   // Close receive channel
   close(ck.Receive)
@@ -527,6 +555,11 @@ func TestPubSubMove(t *testing.T) {
 
   ck.Subscribe("d")
 
+  v := <-ck.Receive
+  if v.Key() != "d" {
+    t.Fatalf("Subscribed to wrong key")
+  }
+
   for i := 0; i < shardmaster.NShards; i++ {
     val := string('0' + i)
 
@@ -536,8 +569,8 @@ func TestPubSubMove(t *testing.T) {
     ck.Put("c", "ccx")
 
     ck.Put("d", val)
-    v := <-ck.Receive
-    if v.Value != val {
+    v = <-ck.Receive
+    if v.PutValue() != val {
       t.Fatalf("Receive got the wrong value")
     }
     mck.Move(0, gids[rand.Int()%len(gids)])
@@ -545,6 +578,11 @@ func TestPubSubMove(t *testing.T) {
 
   // Unsubscribe from key
   ck.Unsubscribe("d")
+
+  v = <-ck.Receive
+  if v.Key() != "d" {
+    t.Fatalf("Unsubscribed from wrong key")
+  }
 
   close(ck.Receive)
 
