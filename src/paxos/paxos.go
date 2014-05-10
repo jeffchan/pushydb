@@ -32,6 +32,7 @@ import "time"
 import "math"
 
 const (
+  MultiPaxosOn = false
   Log          = true
   PingInterval = 100
 )
@@ -154,8 +155,6 @@ func (px *Paxos) Propose(seq int, val interface{}) {
     min := math.MaxInt32
     allCount := 0
     for _, srv := range px.peers {
-      // for !px.dead{
-      //   fmt.Println(seq)
       args := DecidedArgs{seq, maxVal}
       var reply DecidedReply
       reply.Seq = seq
@@ -166,11 +165,6 @@ func (px *Paxos) Propose(seq int, val interface{}) {
         }
         allCount++
       }
-      // if ok {
-      //   break
-      // }
-      // time.Sleep(time.Millisecond*100)
-      // }
     }
 
     // Free memory if common highest done seq consensus
@@ -332,30 +326,21 @@ func (px *Paxos) Start(seq int, v interface{}) {
     return
   }
 
-  leader := px.GetLeader()
-  if leader == px.me {
-    go px.Propose(seq, v)
-  } else {
-    args := StartArgs{seq, v}
-    var reply StartReply
-    ok := call(px.peers[leader], "Paxos.Startpls", &args, &reply)
-    if !ok {
+  if MultiPaxosOn {
+    leader := px.GetLeader()
+    if leader == px.me {
       go px.Propose(seq, v)
+    } else {
+      args := StartArgs{seq, v}
+      var reply StartReply
+      ok := call(px.peers[leader], "Paxos.Startpls", &args, &reply)
+      if !ok {
+        go px.Propose(seq, v)
+      }
     }
+  } else {
+    go px.Propose(seq, v)
   }
-
-  // leader := 0
-  // if leader == px.me {
-  //   go px.Propose(seq, v)
-  // } else {
-  //   args := StartArgs{seq, v}
-  //   var reply StartReply
-  //   ok := call(px.peers[leader], "Paxos.Startpls", &args, &reply)
-  //   if !ok {
-  //     go px.Propose(seq, v)
-  //   }
-  // }
-
 }
 
 func (px *Paxos) Startpls(args *StartArgs, reply *StartReply) error {
@@ -580,8 +565,10 @@ func Make(peers []string, me int, rpcs *rpc.Server) *Paxos {
 
   px.log = make(map[int]*Instance)
 
-  go px.Tick()
-  go px.Pusher()
+  if MultiPaxosOn {
+    go px.Tick()
+    go px.Pusher()
+  }
 
   if rpcs != nil {
     // caller will create socket &c
