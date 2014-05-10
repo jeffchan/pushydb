@@ -293,8 +293,10 @@ func (mb *MBServer) publish(addr string, s *Subscriber, quit chan bool) {
           s.Next[key] = next + 1
         }
       }
-      time.Sleep(50 * time.Millisecond)
-      go func() { dummy <- true }()
+      go func() {
+        time.Sleep(100 * time.Millisecond)
+        dummy <- true
+      }()
     case <-quit:
       return
     }
