@@ -38,40 +38,8 @@ type PDB struct {
 
 func getKeyBytes(vals ...interface{}) []byte {
   ans := make([]byte, 0)
-<<<<<<< HEAD
   for _, val := range(vals) {
     ans = append(ans, getBytes(val)...)
-=======
-  for _, val := range vals {
-    var temp []byte
-    var err interface{}
-    var id byte
-    err = nil
-    switch val.(type) {
-    case int:
-      val = int64(val.(int))
-      buf := new(bytes.Buffer)
-      err = binary.Write(buf, binary.LittleEndian, val)
-      temp = buf.Bytes()
-      id = 0
-    case string:
-      // string isn't fixed width, so we can't use binary.Write
-      temp = []byte(val.(string))
-      id = 1
-    case int64:
-      buf := new(bytes.Buffer)
-      err = binary.Write(buf, binary.LittleEndian, val)
-      temp = buf.Bytes()
-      id = 2
-    default:
-      log.Fatal("Type not supported yet!")
-    }
-    if len(temp) > 255 || err != nil {
-      log.Fatal("Conversion to byte array failed", len(temp), err)
-    }
-    ans = append(ans, byte(len(temp)), id)
-    ans = append(ans, temp...)
->>>>>>> 1c9bfaa9c69e75c9afdf1bbae7abfcb803303abb
   }
   return ans
 }
