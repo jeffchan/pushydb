@@ -102,14 +102,17 @@ func (ck *Clerk) Publish(args *PublishArgs, reply *PublishReply) error {
   }
 
   reply.Err = OK
+
   return nil
 }
 
 func (ck *Clerk) process() {
   for !ck.dead {
     if len(ck.pending) > 0 {
+      ck.mu.Lock()
       notification := ck.pending[0]
       ck.pending = ck.pending[1:]
+      ck.mu.Unlock()
       ck.publish <- *notification
     }
     time.Sleep(50 * time.Millisecond)

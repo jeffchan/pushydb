@@ -327,15 +327,18 @@ func (kv *ShardKV) applyPut(args PutArgs, timestamp time.Time) (string, Err) {
 
   kv.table[key] = entry
 
+  // Bump up version
   entry.Version += 1
+
   // Publish
-  go kv.mb.Notify(
-    entry.Version,
+  go kv.mb.NotifyPut(
     key,
-    newval,
+    entry.Version,
     args.ReqId,
+    newval,
+    oldval,
+    dohash,
     entry.Expiration,
-    CopySubscribers(entry.Subscribers),
   )
 
   return oldval, OK
@@ -355,8 +358,19 @@ func (kv *ShardKV) applySubscribe(args SubscribeArgs) (string, Err) {
     entry = NewEntry()
   }
 
-  entry.Subscribers[addr] = !unsub
   kv.table[key] = entry
+
+  // Bump up version
+  entry.Version += 1
+
+  // Publish
+  go kv.mb.NotifySubscribe(
+    key,
+    entry.Version,
+    args.ReqId,
+    addr,
+    unsub,
+  )
 
   return "", OK
 }
