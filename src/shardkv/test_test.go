@@ -11,6 +11,28 @@ import "sync"
 import "math/rand"
 import "messagebroker"
 
+import leveldb "github.com/syndtr/goleveldb/leveldb"
+
+const DB_PATH = "/var/tmp/db/"
+var db *leveldb.DB
+
+func setupDB() {
+  if db != nil {
+    return
+  }
+  name := "dummy.db"
+  deleteDB(name)
+  var err error
+  db, err = leveldb.OpenFile(DB_PATH+name, nil)
+  if err != nil {
+    fmt.Printf("Error opening db! %s\n", err)
+  }
+}
+
+func deleteDB(name string) {
+  os.RemoveAll(DB_PATH + name)
+}
+
 func port(tag string, host int) string {
   s := "/var/tmp/824-"
   s += strconv.Itoa(os.Getuid()) + "/"
@@ -58,6 +80,8 @@ func cleanup(sa [][]*ShardKV) {
 func setup(tag string, unreliable bool, sudden bool) ([]string, []int64, [][]string, [][]*ShardKV, func(), []string) {
   runtime.GOMAXPROCS(4)
 
+  setupDB()
+
   const nmasters = 3
   var sma []*shardmaster.ShardMaster = make([]*shardmaster.ShardMaster, nmasters)
   var smh []string = make([]string, nmasters)
@@ -66,7 +90,7 @@ func setup(tag string, unreliable bool, sudden bool) ([]string, []int64, [][]str
     smh[i] = port(tag+"m", i)
   }
   for i := 0; i < nmasters; i++ {
-    sma[i] = shardmaster.StartServer(smh, i)
+    sma[i] = shardmaster.StartServer(smh, i, db)
   }
 
   var mba []*messagebroker.MBServer = make([]*messagebroker.MBServer, nmasters)
@@ -75,7 +99,7 @@ func setup(tag string, unreliable bool, sudden bool) ([]string, []int64, [][]str
     mbh[i] = port(tag+"messagebroker", i)
   }
   for i := 0; i < nmasters; i++ {
-    mba[i] = messagebroker.StartServer(mbh, i)
+    mba[i] = messagebroker.StartServer(mbh, i, db)
   }
 
   const ngroups = 3                 // replica groups
@@ -102,7 +126,7 @@ func setup(tag string, unreliable bool, sudden bool) ([]string, []int64, [][]str
       //   }
       //   _, err = process.Wait(0)
       // } else {
-      sa[i][j] = StartServer(gids[i], smh, ha[i], j, mbh)
+      sa[i][j] = StartServer(gids[i], smh, ha[i], j, mbh, db)
       sa[i][j].unreliable = unreliable
       // }
     }

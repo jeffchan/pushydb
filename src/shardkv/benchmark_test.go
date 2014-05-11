@@ -13,6 +13,8 @@ import "paxos"
 func setupb(tag string, unreliable bool, sudden bool) ([]string, []int64, [][]string, [][]*ShardKV, func(), []string) {
   runtime.GOMAXPROCS(4)
 
+  setupDB()
+
   const nmasters = 3
   var sma []*shardmaster.ShardMaster = make([]*shardmaster.ShardMaster, nmasters)
   var smh []string = make([]string, nmasters)
@@ -21,7 +23,7 @@ func setupb(tag string, unreliable bool, sudden bool) ([]string, []int64, [][]st
     smh[i] = port(tag+"m", i)
   }
   for i := 0; i < nmasters; i++ {
-    sma[i] = shardmaster.StartServer(smh, i)
+    sma[i] = shardmaster.StartServer(smh, i, db)
   }
 
   var mba []*messagebroker.MBServer = make([]*messagebroker.MBServer, nmasters)
@@ -30,7 +32,7 @@ func setupb(tag string, unreliable bool, sudden bool) ([]string, []int64, [][]st
     mbh[i] = port(tag+"messagebroker", i)
   }
   for i := 0; i < nmasters; i++ {
-    mba[i] = messagebroker.StartServer(mbh, i)
+    mba[i] = messagebroker.StartServer(mbh, i, db)
   }
 
   const ngroups = 3                 // replica groups
@@ -47,7 +49,7 @@ func setupb(tag string, unreliable bool, sudden bool) ([]string, []int64, [][]st
       ha[i][j] = port(tag+"s", (i*nreplicas)+j)
     }
     for j := 0; j < nreplicas; j++ {
-      sa[i][j] = StartServer(gids[i], smh, ha[i], j, mbh)
+      sa[i][j] = StartServer(gids[i], smh, ha[i], j, mbh, db)
       sa[i][j].unreliable = unreliable
     }
   }
