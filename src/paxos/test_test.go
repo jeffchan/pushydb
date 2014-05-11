@@ -115,8 +115,10 @@ func setupDB() {
   if db != nil {
     return
   }
+  name := "dummy.db"
+  deleteDB(name)
   var err error
-  db, err = leveldb.OpenFile(DB_PATH+"dummy.db", nil)
+  db, err = leveldb.OpenFile(DB_PATH+name, nil)
   if err != nil {
     fmt.Printf("Error opening db! %s\n", err)
   }

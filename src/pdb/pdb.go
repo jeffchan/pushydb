@@ -61,7 +61,7 @@ func (pdb *PDB) Put(keyval ...interface{}) {
   }
   key := keyval[:len(keyval)-1]
   value := keyval[len(keyval)-1]
-  err := pdb.DB.Put(pdb.getKeyBytes(key...), getBytes(value), &opt.WriteOptions{Sync: true})
+  err := pdb.DB.Put(pdb.getKeyBytes(key...), getBytes(value), &opt.WriteOptions{Sync: false})
   if err != nil {
     log.Fatal("Put to db failed:", err)
   }
