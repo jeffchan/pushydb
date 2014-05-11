@@ -14,6 +14,7 @@ import "time"
 import "strconv"
 import "sort"
 import "reflect"
+import leveldb "github.com/syndtr/goleveldb/leveldb"
 
 const (
   Debug       = false
@@ -434,7 +435,7 @@ func (sm *ShardMaster) Kill() {
 // form the fault-tolerant shardmaster service.
 // me is the index of the current server in servers[].
 //
-func StartServer(servers []string, me int) *ShardMaster {
+func StartServer(servers []string, me int, db *leveldb.DB) *ShardMaster {
   gob.Register(Op{})
   gob.Register(JoinArgs{})
   gob.Register(LeaveArgs{})
@@ -452,7 +453,7 @@ func StartServer(servers []string, me int) *ShardMaster {
   rpcs := rpc.NewServer()
   rpcs.Register(sm)
 
-  sm.px = paxos.Make(servers, me, rpcs)
+  sm.px = paxos.Make(servers, me, rpcs, db)
 
   os.Remove(servers[me])
   l, e := net.Listen("unix", servers[me])

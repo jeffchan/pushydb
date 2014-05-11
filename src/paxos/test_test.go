@@ -10,6 +10,20 @@ import "math/rand"
 import leveldb "github.com/syndtr/goleveldb/leveldb"
 
 const DB_PATH = "/var/tmp/db/"
+var db *leveldb.DB
+
+func setupDB() {
+  if db != nil {
+    return
+  }
+  name := "dummy.db"
+  deleteDB(name)
+  var err error
+  db, err = leveldb.OpenFile(DB_PATH+name, nil)
+  if err != nil {
+    fmt.Printf("Error opening db! %s\n", err)
+  }
+}
 
 func deleteDB(name string) {
   os.RemoveAll(DB_PATH + name)
@@ -107,21 +121,6 @@ func noTestSpeed(t *testing.T) {
 
   d := time.Since(t0)
   fmt.Printf("20 agreements %v seconds\n", d.Seconds())
-}
-
-var db *leveldb.DB
-
-func setupDB() {
-  if db != nil {
-    return
-  }
-  name := "dummy.db"
-  deleteDB(name)
-  var err error
-  db, err = leveldb.OpenFile(DB_PATH+name, nil)
-  if err != nil {
-    fmt.Printf("Error opening db! %s\n", err)
-  }
 }
 
 func TestBasic(t *testing.T) {
