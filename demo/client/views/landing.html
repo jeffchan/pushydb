@@ -1,0 +1,11 @@
+<template name="landingPage">
+  <div class="col-md-12">
+    <h1>Pushed data</h1>
+    <ul>
+    {{#each keys}}
+      <li>key: {{ this.key }}, value: {{ this.value }}, reqid: {{ this.reqid }}</li>
+    {{/each}}
+    </ul>
+  </div>
+
+</template>

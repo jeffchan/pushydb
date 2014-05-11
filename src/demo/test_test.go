@@ -58,26 +58,40 @@ func TestBasic(t *testing.T) {
 
   demo := MakeDemo()
 
-  for i := 0; i < 20; i++ {
-    pubArgs := messagebroker.PublishArgs{
+  subArgs := &messagebroker.NotifySubscribeArgs{
+    Key:         "a",
+    Version:     1,
+    ReqId:       "basic1",
+    Address:     demo.addr,
+    Unsubscribe: false,
+  }
+
+  mbservers[0].NotifySubscribe(subArgs, &messagebroker.NotifySubscribeReply{})
+
+  for i := 2; i < 22; i++ {
+    putArgs := &messagebroker.NotifyPutArgs{
       Key:        "a",
-      Value:      strconv.Itoa(i),
+      Version:    int64(i),
       ReqId:      "basic" + strconv.Itoa(i),
-      Expiration: time.Now(),
+      Value:      strconv.Itoa(i),
     }
-    args := &messagebroker.NotifyArgs{
-      Version:     int64(i),
-      PublishArgs: pubArgs,
-      Subscribers: map[string]bool{demo.addr: true},
-    }
+
+    mbservers[0].NotifyPut(putArgs, &messagebroker.NotifyPutReply{})
 
     fmt.Printf("Notifying MB's of new op\n")
 
-    var reply messagebroker.NotifyReply
-    mbservers[0].Notify(args, &reply)
-
     time.Sleep(time.Second)
   }
+
+  unsubArgs := &messagebroker.NotifySubscribeArgs{
+    Key:         "a",
+    Version:     22,
+    ReqId:       "basic3",
+    Address:     demo.addr,
+    Unsubscribe: true,
+  }
+
+  mbservers[0].NotifySubscribe(unsubArgs, &messagebroker.NotifySubscribeReply{})
 
   fmt.Printf(" ...Passed\n")
 }

@@ -27,19 +27,21 @@ func MakeDemo() *Demo {
     for {
       pub := <-demo.pubchan
       fmt.Printf("Received notification- posting\n")
-      postData(pub)
+      if pub.Type == messagebroker.Put {
+        postData(pub.PutArgs)
+      }
     }
   }()
 
   return demo
 }
 
-func postData(pub messagebroker.PublishArgs) {
+func postData(args messagebroker.NotifyPutArgs) {
   values := make(url.Values)
-  values.Set("key", pub.Key)
-  values.Set("value", pub.Value)
-  values.Set("reqid", pub.ReqId)
-  r, err := http.PostForm("http://127.0.0.1:5000/push", values)
+  values.Set("key", args.Key)
+  values.Set("value", args.Value)
+  values.Set("reqid", args.ReqId)
+  r, err := http.PostForm("http://127.0.0.1:3000/post", values)
   if err != nil {
     fmt.Printf("error posting: %s", err)
     return
