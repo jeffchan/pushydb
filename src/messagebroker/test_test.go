@@ -8,6 +8,28 @@ import "time"
 import "runtime"
 import "math/rand"
 
+import leveldb "github.com/syndtr/goleveldb/leveldb"
+
+const DB_PATH = "/var/tmp/db/"
+var db *leveldb.DB
+
+func setupDB() {
+  if db != nil {
+    return
+  }
+  name := "dummy.db"
+  deleteDB(name)
+  var err error
+  db, err = leveldb.OpenFile(DB_PATH+name, nil)
+  if err != nil {
+    fmt.Printf("Error opening db! %s\n", err)
+  }
+}
+
+func deleteDB(name string) {
+  os.RemoveAll(DB_PATH + name)
+}
+
 var _ = time.Millisecond
 
 func port(tag string, host int) string {
@@ -34,6 +56,8 @@ func cleanup(mbservers []*MBServer) {
 func setup(tag string, unreliable bool) ([]string, []*MBServer, func()) {
   runtime.GOMAXPROCS(4)
 
+  setupDB()
+
   const nbrokers = 3
   var mbservers []*MBServer = make([]*MBServer, nbrokers)
   var hosts []string = make([]string, nbrokers)
@@ -42,7 +66,7 @@ func setup(tag string, unreliable bool) ([]string, []*MBServer, func()) {
     hosts[i] = port(tag+"m", i)
   }
   for i := 0; i < nbrokers; i++ {
-    mbservers[i] = StartServer(hosts, i)
+    mbservers[i] = StartServer(hosts, i, db)
   }
 
   clean := func() { cleanup(mbservers) }
