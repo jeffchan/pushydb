@@ -186,7 +186,7 @@ func (px *Paxos) Prepare(args *PrepareArgs, reply *PrepareReply) error {
   it := px.getInstance(args.Seq)
   if args.N > it.prepareN {
     it.prepareN = args.N
-    // px.pdb.Put(args.Seq, it)
+    px.pdb.Put(args.Seq, it)
 
     reply.Err = OK
     reply.HighestDoneSeq = px.highestDone // piggyback

@@ -5,6 +5,7 @@ import "fmt"
 import leveldb "github.com/syndtr/goleveldb/leveldb"
 import "encoding/gob"
 import "os"
+import "math/rand"
 
 const DB_PATH = "/var/tmp/db/"
 
@@ -76,4 +77,25 @@ func TestBasic(t *testing.T) {
 
   db.Close()
   fmt.Println(" ...Passed")
+}
+
+func BenchmarkPut(b *testing.B) {
+  fmt.Println("benchmarking...")
+  dbname := "dummy.db"
+  deleteDB(dbname)
+  defer deleteDB(dbname)
+  db, err := leveldb.OpenFile(DB_PATH+dbname, nil)
+  if err != nil {
+    b.Fatalf("Error opening db! %s\n", err)
+  }
+  pdb := StartDB(db)
+
+  b.ResetTimer()
+  for i:=0; i<b.N; i++ {
+    big := make([]byte, 10000)
+    for j := 0; j < len(big); j++ {
+      big[j] = byte('a' + rand.Int()%26)
+    }
+    pdb.Put("tmp", big)
+  }
 }
