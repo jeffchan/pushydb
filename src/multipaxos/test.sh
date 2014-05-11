@@ -1,0 +1,13 @@
+#!/bin/bash
+# Usage: ./test.sh [-test.run TestUnreliable]
+
+trap "echo Exited!; exit;" SIGINT SIGTERM
+
+rm -r out
+mkdir -p out
+
+for i in $(seq 0 10);
+do
+  echo "Running trial ${i}"
+	go test $1 $2 2>out/${i}.error | egrep -v 'EOF|files|connection|broken|connected' > out/${i}.log
+done
