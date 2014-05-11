@@ -34,9 +34,9 @@ import "pdb"
 import leveldb "github.com/syndtr/goleveldb/leveldb"
 
 const (
-  MultiPaxosOn = false
-  Log          = true
-  PingInterval = 100
+  MultiPaxosOn   = false
+  Log            = true
+  PingInterval   = 100
   highestDoneKey = "highestDone"
 )
 
@@ -565,7 +565,7 @@ func (px *Paxos) tryRecovery() {
   instance := Instance{}
   num := -1
   for px.pdb.Get(num+1, &instance) {
-    num+=1
+    num += 1
     px.log[num] = &instance
     instance = Instance{}
   }
@@ -590,7 +590,7 @@ func Make(peers []string, me int, rpcs *rpc.Server, db *leveldb.DB) *Paxos {
   ///////////////////////////////////
   // start the PDB
   ///////////////////////////////////
-  px.pdb = pdb.StartDB(db)
+  px.pdb = pdb.StartDB(db, px.addr)
   px.tryRecovery()
 
   if MultiPaxosOn {

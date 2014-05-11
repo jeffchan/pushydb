@@ -12,7 +12,7 @@ import leveldb "github.com/syndtr/goleveldb/leveldb"
 const DB_PATH = "/var/tmp/db/"
 
 func deleteDB(name string) {
-  os.RemoveAll(DB_PATH+name)
+  os.RemoveAll(DB_PATH + name)
 }
 
 func port(tag string, host int) string {
@@ -89,13 +89,7 @@ func noTestSpeed(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   var pxh []string = make([]string, npaxos)
   defer cleanup(pxa)
-  dbname := "noTestSpeed.db"
-  deleteDB(dbname)
-  defer deleteDB(dbname)
-  db, err := leveldb.OpenFile(DB_PATH+dbname, nil)
-  if err != nil {
-    t.Fatalf("Error opening db! %s\n", err)
-  }
+  setupDB()
 
   for i := 0; i < npaxos; i++ {
     pxh[i] = port("time", i)
@@ -115,6 +109,18 @@ func noTestSpeed(t *testing.T) {
   fmt.Printf("20 agreements %v seconds\n", d.Seconds())
 }
 
+var db *leveldb.DB
+
+func setupDB() {
+  if db != nil {
+    return
+  }
+  var err error
+  db, err = leveldb.OpenFile(DB_PATH+"dummy.db", nil)
+  if err != nil {
+    fmt.Printf("Error opening db! %s\n", err)
+  }
+}
 
 func TestBasic(t *testing.T) {
   runtime.GOMAXPROCS(4)
@@ -123,20 +129,11 @@ func TestBasic(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   var pxh []string = make([]string, npaxos)
   defer cleanup(pxa)
-  dbbase := "basic.db"
-
+  setupDB()
   for i := 0; i < npaxos; i++ {
     pxh[i] = port("basic", i)
   }
   for i := 0; i < npaxos; i++ {
-    dbname := dbbase + strconv.Itoa(i)
-    deleteDB(dbname)
-    defer deleteDB(dbname)
-    db, err := leveldb.OpenFile(DB_PATH+dbname, nil)
-    if err != nil {
-      t.Fatalf("Error opening db! %s\n", err)
-    }
-
     pxa[i] = Make(pxh, i, nil, db)
   }
 
@@ -193,20 +190,11 @@ func TestDeaf(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   var pxh []string = make([]string, npaxos)
   defer cleanup(pxa)
-  dbbase := "deaf.db"
-
+  setupDB()
   for i := 0; i < npaxos; i++ {
     pxh[i] = port("deaf", i)
   }
   for i := 0; i < npaxos; i++ {
-    dbname := dbbase + strconv.Itoa(i)
-    deleteDB(dbname)
-    defer deleteDB(dbname)
-    db, err := leveldb.OpenFile(DB_PATH+dbname, nil)
-    if err != nil {
-      t.Fatalf("Error opening db! %s\n", err)
-    }
-
     pxa[i] = Make(pxh, i, nil, db)
   }
 
@@ -246,21 +234,12 @@ func TestForget(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   var pxh []string = make([]string, npaxos)
   defer cleanup(pxa)
-  dbbase := "forget.db"
+  setupDB()
 
   for i := 0; i < npaxos; i++ {
     pxh[i] = port("gc", i)
   }
   for i := 0; i < npaxos; i++ {
-    dbname := dbbase + strconv.Itoa(i)
-    deleteDB(dbname)
-    defer deleteDB(dbname)
-    db, err := leveldb.OpenFile(DB_PATH+dbname, nil)
-    if err != nil {
-      t.Fatalf("Error opening db! %s\n", err)
-    }
-
-
     pxa[i] = Make(pxh, i, nil, db)
   }
 
@@ -339,20 +318,12 @@ func TestManyForget(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   var pxh []string = make([]string, npaxos)
   defer cleanup(pxa)
-  dbbase := "manyforget.db"
+  setupDB()
 
   for i := 0; i < npaxos; i++ {
     pxh[i] = port("manygc", i)
   }
   for i := 0; i < npaxos; i++ {
-    dbname := dbbase + strconv.Itoa(i)
-    deleteDB(dbname)
-    defer deleteDB(dbname)
-    db, err := leveldb.OpenFile(DB_PATH+dbname, nil)
-    if err != nil {
-      t.Fatalf("Error opening db! %s\n", err)
-    }
-
     pxa[i] = Make(pxh, i, nil, db)
     pxa[i].unreliable = true
   }
@@ -418,19 +389,12 @@ func TestForgetMem(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   var pxh []string = make([]string, npaxos)
   defer cleanup(pxa)
-  dbbase := "forgetmem.db"
+  setupDB()
 
   for i := 0; i < npaxos; i++ {
     pxh[i] = port("gcmem", i)
   }
   for i := 0; i < npaxos; i++ {
-    dbname := dbbase + strconv.Itoa(i)
-    deleteDB(dbname)
-    defer deleteDB(dbname)
-    db, err := leveldb.OpenFile(DB_PATH+dbname, nil)
-    if err != nil {
-      t.Fatalf("Error opening db! %s\n", err)
-    }
     pxa[i] = Make(pxh, i, nil, db)
   }
 
@@ -490,19 +454,12 @@ func TestRPCCount(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   var pxh []string = make([]string, npaxos)
   defer cleanup(pxa)
-  dbbase := "rpccount.db"
+  setupDB()
 
   for i := 0; i < npaxos; i++ {
     pxh[i] = port("count", i)
   }
   for i := 0; i < npaxos; i++ {
-    dbname := dbbase + strconv.Itoa(i)
-    deleteDB(dbname)
-    defer deleteDB(dbname)
-    db, err := leveldb.OpenFile(DB_PATH+dbname, nil)
-    if err != nil {
-      t.Fatalf("Error opening db! %s\n", err)
-    }
     pxa[i] = Make(pxh, i, nil, db)
   }
 
@@ -573,19 +530,12 @@ func TestMany(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   var pxh []string = make([]string, npaxos)
   defer cleanup(pxa)
-  dbbase := "many.db"
+  setupDB()
 
   for i := 0; i < npaxos; i++ {
     pxh[i] = port("many", i)
   }
   for i := 0; i < npaxos; i++ {
-    dbname := dbbase + strconv.Itoa(i)
-    deleteDB(dbname)
-    defer deleteDB(dbname)
-    db, err := leveldb.OpenFile(DB_PATH+dbname, nil)
-    if err != nil {
-      t.Fatalf("Error opening db! %s\n", err)
-    }
     pxa[i] = Make(pxh, i, nil, db)
     pxa[i].Start(0, 0)
   }
@@ -631,35 +581,26 @@ func TestOld(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   var pxh []string = make([]string, npaxos)
   defer cleanup(pxa)
-  dbbase := "old.db"
-  dbs := make([]*leveldb.DB, npaxos)
+  setupDB()
 
   for i := 0; i < npaxos; i++ {
-    dbname := dbbase + strconv.Itoa(i)
-    deleteDB(dbname)
-    defer deleteDB(dbname)
-    db, err := leveldb.OpenFile(DB_PATH+dbname, nil)
-    if err != nil {
-      t.Fatalf("Error opening db! %s\n", err)
-    }
-    dbs[i] = db
     pxh[i] = port("old", i)
   }
 
-  pxa[1] = Make(pxh, 1, nil, dbs[1])
-  pxa[2] = Make(pxh, 2, nil, dbs[2])
-  pxa[3] = Make(pxh, 3, nil, dbs[3])
+  pxa[1] = Make(pxh, 1, nil, db)
+  pxa[2] = Make(pxh, 2, nil, db)
+  pxa[3] = Make(pxh, 3, nil, db)
   pxa[1].Start(1, 111)
 
   waitmajority(t, pxa, 1)
 
-  pxa[0] = Make(pxh, 0, nil, dbs[0])
+  pxa[0] = Make(pxh, 0, nil, db)
   pxa[0].Start(1, 222)
 
   waitn(t, pxa, 1, 4)
 
   if false {
-    pxa[4] = Make(pxh, 4, nil, dbs[4])
+    pxa[4] = Make(pxh, 4, nil, db)
     waitn(t, pxa, 1, npaxos)
   }
 
@@ -678,19 +619,12 @@ func TestManyUnreliable(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   var pxh []string = make([]string, npaxos)
   defer cleanup(pxa)
-  dbbase := "manyunreliable.db"
+  setupDB()
 
   for i := 0; i < npaxos; i++ {
     pxh[i] = port("manyun", i)
   }
   for i := 0; i < npaxos; i++ {
-    dbname := dbbase + strconv.Itoa(i)
-    deleteDB(dbname)
-    defer deleteDB(dbname)
-    db, err := leveldb.OpenFile(DB_PATH+dbname, nil)
-    if err != nil {
-      t.Fatalf("Error opening db! %s\n", err)
-    }
     pxa[i] = Make(pxh, i, nil, db)
     pxa[i].unreliable = true
     pxa[i].Start(0, 0)
@@ -773,16 +707,9 @@ func TestPartition(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   defer cleanup(pxa)
   defer cleanpp(tag, npaxos)
-  dbbase := "partition.db"
+  setupDB()
 
   for i := 0; i < npaxos; i++ {
-    dbname := dbbase + strconv.Itoa(i)
-    deleteDB(dbname)
-    // defer deleteDB(dbname)
-    db, err := leveldb.OpenFile(DB_PATH+dbname, nil)
-    if err != nil {
-      t.Fatalf("Error opening db! %s\n", err)
-    }
     var pxh []string = make([]string, npaxos)
     for j := 0; j < npaxos; j++ {
       if j == i {
@@ -882,16 +809,9 @@ func TestLots(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   defer cleanup(pxa)
   defer cleanpp(tag, npaxos)
-  dbbase := "lots.db"
+  setupDB()
 
   for i := 0; i < npaxos; i++ {
-    dbname := dbbase + strconv.Itoa(i)
-    deleteDB(dbname)
-    defer deleteDB(dbname)
-    db, err := leveldb.OpenFile(DB_PATH+dbname, nil)
-    if err != nil {
-      t.Fatalf("Error opening db! %s\n", err)
-    }
     var pxh []string = make([]string, npaxos)
     for j := 0; j < npaxos; j++ {
       if j == i {

@@ -16,7 +16,7 @@ type Data struct {
 }
 
 func deleteDB(name string) {
-  os.RemoveAll(DB_PATH+name)
+  os.RemoveAll(DB_PATH + name)
 }
 
 func chk(t *testing.T, ok bool, val interface{}, true_val interface{}) {
@@ -36,7 +36,7 @@ func TestBasic(t *testing.T) {
   if err != nil {
     t.Fatalf("Error opening db! %s\n", err)
   }
-  pdb := StartDB(db)
+  pdb := StartDB(db, "sup")
   point := Data{1, 2, "hello"}
   gob.Register(Data{})
   gob.Register("ok")
@@ -88,10 +88,10 @@ func BenchmarkPut(b *testing.B) {
   if err != nil {
     b.Fatalf("Error opening db! %s\n", err)
   }
-  pdb := StartDB(db)
+  pdb := StartDB(db, "yo")
 
   b.ResetTimer()
-  for i:=0; i<b.N; i++ {
+  for i := 0; i < b.N; i++ {
     big := make([]byte, 10000)
     for j := 0; j < len(big); j++ {
       big[j] = byte('a' + rand.Int()%26)

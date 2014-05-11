@@ -138,7 +138,7 @@ func doConcurrentB(b *testing.B, unreliable bool, subscribe bool) {
   for i := 0; i < npara; i++ {
     x := <-ca[i]
     if x == false {
-    b.Fatalf("something is wrong")
+      b.Fatalf("something is wrong")
     }
   }
 
