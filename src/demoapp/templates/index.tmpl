@@ -177,8 +177,14 @@
             return false
           });
 
+          $(".val").keyup(function(e) {
+            if (e.keyCode == 13) {
+              $(".pushMe").click()
+            }
+          });
+
           if (window["WebSocket"]) {
-              conn = new WebSocket("ws://127.0.0.1:3000/ws");
+              conn = new WebSocket("ws://162.243.211.206/ws");
               conn.onclose = function(evt) {
                 console.log("Socket closed")
               }
