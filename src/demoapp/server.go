@@ -105,9 +105,10 @@ func setup(tag string, unreliable bool, sudden bool) ([]string, []int64, [][]str
 func listener(ck *shardkv.Clerk) {
   for {
     v := <- ck.Receive
-    fmt.Printf("%+v", v)
+    fmt.Printf("%+v\n", v)
     // send v on socket
     sendMe := "Key " + v.Key() + ", new value received: " + v.PutValue()
+    fmt.Printf("Sending %s", sendMe)
     h.broadcast <- []byte(sendMe)
   }
 }
@@ -121,6 +122,11 @@ func main() {
   mck := shardmaster.MakeClerk(smh)
   mck.Join(gids[0], ha[0])
 
+  ck.Subscribe("a")
+  ck.Subscribe("b")
+  ck.Subscribe("c")
+  ck.Subscribe("d")
+  ck.Subscribe("e")
   defer cleanupClerk(ck)
 
   go listener(ck)
