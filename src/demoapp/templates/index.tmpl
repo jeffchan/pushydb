@@ -1,22 +1,78 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>6.824 dashboard demo</title>
+    <title>PushyDBApp</title>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+    <!--[if lt IE 9]>
+      <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+      <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+    <link href="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css" rel="stylesheet">
+    <style type="text/css">
+      html, body {
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <ul class="nav nav-pills pull-right">
+          <li class="active"><a href="#">Home</a></li>
+          <li><a href="#">About</a></li>
+          <li><a href="#">Contact</a></li>
+        </ul>
+        <h3 class="text-muted">PushyDBApp</h3>
+      </div>
+
+      <div class="jumbotron">
+        <h1>Really Cool Web App™</h1>
+        <p class="lead">Cras justo odio, dapibus ac facilisis in, egestas eget quam. Fusce dapibus, tellus ac cursus commodo, tortor mauris condimentum nibh, ut fermentum massa justo sit amet risus.</p>
+        <p><a class="btn btn-lg btn-success" href="#" role="button">Sign up today</a></p>
+      </div>
+
+      <div class="row marketing">
+        <div class="col-lg-6">
+          <h4>Subheading</h4>
+          <p>Donec id elit non mi porta gravida at eget metus. Maecenas faucibus mollis interdum.</p>
+
+          <h4>Subheading</h4>
+          <p>Morbi leo risus, porta ac consectetur ac, vestibulum at eros. Cras mattis consectetur purus sit amet fermentum.</p>
+
+          <h4>Subheading</h4>
+          <p>Maecenas sed diam eget risus varius blandit sit amet non magna.</p>
+        </div>
+
+        <div class="col-lg-6">
+          <h4>Subheading</h4>
+          <p>Donec id elit non mi porta gravida at eget metus. Maecenas faucibus mollis interdum.</p>
+
+          <h4>Subheading</h4>
+          <p>Morbi leo risus, porta ac consectetur ac, vestibulum at eros. Cras mattis consectetur purus sit amet fermentum.</p>
+
+          <h4>Subheading</h4>
+          <p>Maecenas sed diam eget risus varius blandit sit amet non magna.</p>
+        </div>
+      </div>
+
+      <div class="footer">
+        <p>&copy; So Pushy Inc.</p>
+      </div>
+
+    </div> <!-- /container -->
+
     <script src="http://ajax.googleapis.com/ajax/libs/jquery/2.1.0/jquery.min.js"></script>
+    <script src="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
     <script type="text/javascript">
         $(function() {
           var conn;
           var msg = $("#msg");
           var log = $("#log");
-
-          function appendLog(msg) {
-              var d = log[0]
-              var doScroll = d.scrollTop == d.scrollHeight - d.clientHeight;
-              msg.appendTo(log)
-              if (doScroll) {
-                  d.scrollTop = d.scrollHeight - d.clientHeight;
-              }
-          }
 
           $("#form").submit(function() {
               if (!conn) {
@@ -31,30 +87,17 @@
           });
 
           if (window["WebSocket"]) {
-              conn = new WebSocket("ws://{{$}}/ws");
+              conn = new WebSocket("ws://127.0.0.1:3000/ws");
               conn.onclose = function(evt) {
-                  appendLog($("<div><b>Connection closed.</b></div>"))
+                //TODO
               }
               conn.onmessage = function(evt) {
-                  appendLog($("<div/>").text(evt.data))
+                //TODO
               }
           } else {
-              appendLog($("<div><b>Your browser does not support WebSockets.</b></div>"))
+              console.log("Your browser does not support WebSockets.")
           }
         });
     </script>
-    <style type="text/css">
-      html, body {
-        width: 100%;
-        height: 100%;
-      }
-    </style>
-  </head>
-  <body>
-
-  <h1>6.824 PushyDB App demo</h1>
-
-  <p>My first paragraph.</p>
-
   </body>
 </html>
