@@ -107,17 +107,20 @@ func listener(ck *shardkv.Clerk) {
     v := <- ck.Receive
     fmt.Printf("%+v", v)
     // send v on socket
+    sendMe := "Key " + v.Key() + ", new value received: " + v.PutValue()
+    h.broadcast <- []byte(sendMe)
   }
 }
 
+var smh, gids, ha, _, clean, _ = setup("demo", false, false)
+var ck = shardkv.MakeClerk(smh)
+
 func main() {
-  smh, gids, ha, _, clean, _ := setup("demo", false, false)
   defer clean()
 
   mck := shardmaster.MakeClerk(smh)
   mck.Join(gids[0], ha[0])
 
-  ck := shardkv.MakeClerk(smh)
   defer cleanupClerk(ck)
 
   go listener(ck)
@@ -130,7 +133,7 @@ func main() {
     r.HTML(200, "index", "")
   })
 
-  m.Post("/ws", wsHandler)
+  m.Get("/ws", wsHandler)
 
   m.Run()
 }

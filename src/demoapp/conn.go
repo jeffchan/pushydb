@@ -3,6 +3,8 @@ package main
 import (
   "github.com/gorilla/websocket"
   "net/http"
+  "strings"
+  "fmt"
 )
 
 type connection struct {
@@ -19,7 +21,8 @@ func (c *connection) reader() {
     if err != nil {
       break
     }
-    h.broadcast <- message
+    hello := strings.Split(string(message), "|")
+    ck.Put(hello[0], hello[1])
   }
   c.ws.Close()
 }
@@ -37,8 +40,10 @@ func (c *connection) writer() {
 var upgrader = &websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024}
 
 func wsHandler(w http.ResponseWriter, r *http.Request) {
+  fmt.Printf("Handling\n")
   ws, err := upgrader.Upgrade(w, r, nil)
   if err != nil {
+    fmt.Printf("Fucking error, %s\n", err)
     return
   }
   c := &connection{send: make(chan []byte, 256), ws: ws}
