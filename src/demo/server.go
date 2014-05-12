@@ -1,4 +1,4 @@
-package main
+package demo
 
 import "github.com/go-martini/martini"
 import "messagebroker"
@@ -120,6 +120,7 @@ func main() {
   defer cleanupClerk(ck)
 
   go listener(ck)
+  go h.run()
 
   m := martini.Classic()
   m.Use(render.Renderer())
@@ -127,6 +128,8 @@ func main() {
   m.Get("/", func(r render.Render) {
     r.HTML(200, "index", "")
   })
+
+  m.Post("/ws", wsHandler)
 
   m.Run()
 }

@@ -49,7 +49,3 @@ func postData(args messagebroker.NotifyPutArgs) {
   // body, _ := ioutil.ReadAll(r.Body)
   r.Body.Close()
 }
-
-func main() {
-  MakeDemo()
-}
