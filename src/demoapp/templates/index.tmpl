@@ -23,6 +23,13 @@
         border: 1px solid #ccc;
         width:100%;
         min-height:150px;
+        padding-left: 0px !important;
+      }
+      .pushedThing {
+        list-style: none;
+        padding: 2px;
+        background-color: #EFEFEF;
+        border-bottom: 1px solid #CCC;
       }
 
       /* Everything but the jumbotron gets side spacing for mobile first views */
@@ -176,7 +183,7 @@
                 console.log("Socket closed")
               }
               conn.onmessage = function(evt) {
-                $(".pushedStuff").append("<li>"+evt.data+"</li>")
+                $(".pushedStuff").append("<li class='pushedThing'>"+evt.data+"</li>")
               }
           } else {
               console.log("Your browser does not support WebSockets.")

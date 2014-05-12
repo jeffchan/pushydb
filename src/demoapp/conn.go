@@ -40,10 +40,9 @@ func (c *connection) writer() {
 var upgrader = &websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024}
 
 func wsHandler(w http.ResponseWriter, r *http.Request) {
-  fmt.Printf("Handling\n")
   ws, err := upgrader.Upgrade(w, r, nil)
   if err != nil {
-    fmt.Printf("Fucking error, %s\n", err)
+    fmt.Printf("Error, %s\n", err)
     return
   }
   c := &connection{send: make(chan []byte, 256), ws: ws}

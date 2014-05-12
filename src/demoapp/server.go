@@ -107,7 +107,7 @@ func listener(ck *shardkv.Clerk) {
     v := <- ck.Receive
     fmt.Printf("%+v\n", v)
     // send v on socket
-    sendMe := "Key " + v.Key() + ", new value received: " + v.PutValue()
+    sendMe := "Key: " + v.Key() + ", Value: " + v.PutValue()
     fmt.Printf("Sending %s", sendMe)
     h.broadcast <- []byte(sendMe)
   }
