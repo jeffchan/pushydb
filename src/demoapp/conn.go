@@ -5,6 +5,7 @@ import (
   "net/http"
   "strings"
   "fmt"
+  "github.com/kennygrant/sanitize"
 )
 
 type connection struct {
@@ -21,7 +22,7 @@ func (c *connection) reader() {
     if err != nil {
       break
     }
-    hello := strings.Split(string(message), "|")
+    hello := strings.Split(sanitize.HTML(string(message)), "|")
     ck.Put(hello[0], hello[1])
   }
   c.ws.Close()
