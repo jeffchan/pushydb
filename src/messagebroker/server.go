@@ -13,6 +13,7 @@ import "math/rand"
 import "strconv"
 import "time"
 import "reflect"
+import leveldb "github.com/syndtr/goleveldb/leveldb"
 
 const (
   ServerLog           = false
@@ -445,7 +446,7 @@ func (mb *MBServer) logSync() {
   }
 }
 
-func StartServer(servers []string, me int) *MBServer {
+func StartServer(servers []string, me int, db *leveldb.DB) *MBServer {
   gob.Register(Op{})
   gob.Register(PublishArgs{})
   gob.Register(NotifyPutArgs{})
@@ -462,7 +463,7 @@ func StartServer(servers []string, me int) *MBServer {
   rpcs := rpc.NewServer()
   rpcs.Register(mb)
 
-  mb.px = paxos.Make(servers, me, rpcs)
+  mb.px = paxos.Make(servers, me, rpcs, db)
 
   os.Remove(servers[me])
   l, e := net.Listen("unix", servers[me])

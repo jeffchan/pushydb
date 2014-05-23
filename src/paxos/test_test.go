@@ -7,6 +7,27 @@ import "os"
 import "time"
 import "fmt"
 import "math/rand"
+import leveldb "github.com/syndtr/goleveldb/leveldb"
+
+const DB_PATH = "/var/tmp/db/"
+var db *leveldb.DB
+
+func setupDB() {
+  if db != nil {
+    return
+  }
+  name := "dummy.db"
+  deleteDB(name)
+  var err error
+  db, err = leveldb.OpenFile(DB_PATH+name, nil)
+  if err != nil {
+    fmt.Printf("Error opening db! %s\n", err)
+  }
+}
+
+func deleteDB(name string) {
+  os.RemoveAll(DB_PATH + name)
+}
 
 func port(tag string, host int) string {
   s := "/var/tmp/824-"
@@ -39,7 +60,7 @@ func ndecided(t *testing.T, pxa []*Paxos, seq int) int {
 }
 
 func waitn(t *testing.T, pxa []*Paxos, seq int, wanted int) {
-  to := 10 * time.Millisecond
+  to := 50 * time.Millisecond
   for iters := 0; iters < 30; iters++ {
     if ndecided(t, pxa, seq) >= wanted {
       break
@@ -82,12 +103,13 @@ func noTestSpeed(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   var pxh []string = make([]string, npaxos)
   defer cleanup(pxa)
+  setupDB()
 
   for i := 0; i < npaxos; i++ {
     pxh[i] = port("time", i)
   }
   for i := 0; i < npaxos; i++ {
-    pxa[i] = Make(pxh, i, nil)
+    pxa[i] = Make(pxh, i, nil, db)
   }
 
   t0 := time.Now()
@@ -108,12 +130,12 @@ func TestBasic(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   var pxh []string = make([]string, npaxos)
   defer cleanup(pxa)
-
+  setupDB()
   for i := 0; i < npaxos; i++ {
     pxh[i] = port("basic", i)
   }
   for i := 0; i < npaxos; i++ {
-    pxa[i] = Make(pxh, i, nil)
+    pxa[i] = Make(pxh, i, nil, db)
   }
 
   fmt.Printf("Test: Single proposer ...\n")
@@ -159,6 +181,7 @@ func TestBasic(t *testing.T) {
   }
 
   fmt.Printf("  ... Passed\n")
+  time.Sleep(5 * time.Second)
 }
 
 func TestDeaf(t *testing.T) {
@@ -168,12 +191,12 @@ func TestDeaf(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   var pxh []string = make([]string, npaxos)
   defer cleanup(pxa)
-
+  setupDB()
   for i := 0; i < npaxos; i++ {
     pxh[i] = port("deaf", i)
   }
   for i := 0; i < npaxos; i++ {
-    pxa[i] = Make(pxh, i, nil)
+    pxa[i] = Make(pxh, i, nil, db)
   }
 
   fmt.Printf("Test: Deaf proposer ...\n")
@@ -202,6 +225,7 @@ func TestDeaf(t *testing.T) {
   waitn(t, pxa, 1, npaxos)
 
   fmt.Printf("  ... Passed\n")
+  time.Sleep(5 * time.Second)
 }
 
 func TestForget(t *testing.T) {
@@ -211,12 +235,13 @@ func TestForget(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   var pxh []string = make([]string, npaxos)
   defer cleanup(pxa)
+  setupDB()
 
   for i := 0; i < npaxos; i++ {
     pxh[i] = port("gc", i)
   }
   for i := 0; i < npaxos; i++ {
-    pxa[i] = Make(pxh, i, nil)
+    pxa[i] = Make(pxh, i, nil, db)
   }
 
   fmt.Printf("Test: Forgetting ...\n")
@@ -284,6 +309,7 @@ func TestForget(t *testing.T) {
   }
 
   fmt.Printf("  ... Passed\n")
+  time.Sleep(5 * time.Second)
 }
 
 func TestManyForget(t *testing.T) {
@@ -293,12 +319,13 @@ func TestManyForget(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   var pxh []string = make([]string, npaxos)
   defer cleanup(pxa)
+  setupDB()
 
   for i := 0; i < npaxos; i++ {
     pxh[i] = port("manygc", i)
   }
   for i := 0; i < npaxos; i++ {
-    pxa[i] = Make(pxh, i, nil)
+    pxa[i] = Make(pxh, i, nil, db)
     pxa[i].unreliable = true
   }
 
@@ -348,6 +375,7 @@ func TestManyForget(t *testing.T) {
   }
 
   fmt.Printf("  ... Passed\n")
+  time.Sleep(5 * time.Second)
 }
 
 //
@@ -362,12 +390,13 @@ func TestForgetMem(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   var pxh []string = make([]string, npaxos)
   defer cleanup(pxa)
+  setupDB()
 
   for i := 0; i < npaxos; i++ {
     pxh[i] = port("gcmem", i)
   }
   for i := 0; i < npaxos; i++ {
-    pxa[i] = Make(pxh, i, nil)
+    pxa[i] = Make(pxh, i, nil, db)
   }
 
   pxa[0].Start(0, "x")
@@ -426,12 +455,13 @@ func TestRPCCount(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   var pxh []string = make([]string, npaxos)
   defer cleanup(pxa)
+  setupDB()
 
   for i := 0; i < npaxos; i++ {
     pxh[i] = port("count", i)
   }
   for i := 0; i < npaxos; i++ {
-    pxa[i] = Make(pxh, i, nil)
+    pxa[i] = Make(pxh, i, nil, db)
   }
 
   ninst1 := 5
@@ -501,12 +531,13 @@ func TestMany(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   var pxh []string = make([]string, npaxos)
   defer cleanup(pxa)
+  setupDB()
 
   for i := 0; i < npaxos; i++ {
     pxh[i] = port("many", i)
   }
   for i := 0; i < npaxos; i++ {
-    pxa[i] = Make(pxh, i, nil)
+    pxa[i] = Make(pxh, i, nil, db)
     pxa[i].Start(0, 0)
   }
 
@@ -551,25 +582,26 @@ func TestOld(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   var pxh []string = make([]string, npaxos)
   defer cleanup(pxa)
+  setupDB()
 
   for i := 0; i < npaxos; i++ {
     pxh[i] = port("old", i)
   }
 
-  pxa[1] = Make(pxh, 1, nil)
-  pxa[2] = Make(pxh, 2, nil)
-  pxa[3] = Make(pxh, 3, nil)
+  pxa[1] = Make(pxh, 1, nil, db)
+  pxa[2] = Make(pxh, 2, nil, db)
+  pxa[3] = Make(pxh, 3, nil, db)
   pxa[1].Start(1, 111)
 
   waitmajority(t, pxa, 1)
 
-  pxa[0] = Make(pxh, 0, nil)
+  pxa[0] = Make(pxh, 0, nil, db)
   pxa[0].Start(1, 222)
 
   waitn(t, pxa, 1, 4)
 
   if false {
-    pxa[4] = Make(pxh, 4, nil)
+    pxa[4] = Make(pxh, 4, nil, db)
     waitn(t, pxa, 1, npaxos)
   }
 
@@ -588,12 +620,13 @@ func TestManyUnreliable(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   var pxh []string = make([]string, npaxos)
   defer cleanup(pxa)
+  setupDB()
 
   for i := 0; i < npaxos; i++ {
     pxh[i] = port("manyun", i)
   }
   for i := 0; i < npaxos; i++ {
-    pxa[i] = Make(pxh, i, nil)
+    pxa[i] = Make(pxh, i, nil, db)
     pxa[i].unreliable = true
     pxa[i].Start(0, 0)
   }
@@ -659,7 +692,7 @@ func part(t *testing.T, tag string, npaxos int, p1 []int, p2 []int, p3 []int) {
         if err != nil {
           // one reason this link can fail is if the
           // corresponding Paxos peer has prematurely quit and
-          // deleted its socket file (e.g., called px.Kill()).
+          // deleteDBd its socket file (e.g., called px.Kill()).
           t.Fatalf("os.Link(%v, %v): %v\n", pj, ij, err)
         }
       }
@@ -675,6 +708,7 @@ func TestPartition(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   defer cleanup(pxa)
   defer cleanpp(tag, npaxos)
+  setupDB()
 
   for i := 0; i < npaxos; i++ {
     var pxh []string = make([]string, npaxos)
@@ -685,7 +719,7 @@ func TestPartition(t *testing.T) {
         pxh[j] = pp(tag, i, j)
       }
     }
-    pxa[i] = Make(pxh, i, nil)
+    pxa[i] = Make(pxh, i, nil, db)
   }
   defer part(t, tag, npaxos, []int{}, []int{}, []int{})
 
@@ -776,6 +810,7 @@ func TestLots(t *testing.T) {
   var pxa []*Paxos = make([]*Paxos, npaxos)
   defer cleanup(pxa)
   defer cleanpp(tag, npaxos)
+  setupDB()
 
   for i := 0; i < npaxos; i++ {
     var pxh []string = make([]string, npaxos)
@@ -786,7 +821,8 @@ func TestLots(t *testing.T) {
         pxh[j] = pp(tag, i, j)
       }
     }
-    pxa[i] = Make(pxh, i, nil)
+
+    pxa[i] = Make(pxh, i, nil, db)
     pxa[i].unreliable = true
   }
   defer part(t, tag, npaxos, []int{}, []int{}, []int{})
@@ -870,4 +906,5 @@ func TestLots(t *testing.T) {
   }
 
   fmt.Printf("  ... Passed\n")
+  time.Sleep(5 * time.Second) //for the database to finish its writes
 }

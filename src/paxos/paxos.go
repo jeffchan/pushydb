@@ -31,11 +31,13 @@ import "math/rand"
 import "time"
 import "math"
 import "pdb"
+import leveldb "github.com/syndtr/goleveldb/leveldb"
 
 const (
-  MultiPaxosOn = false
-  Log          = true
-  PingInterval = 100
+  MultiPaxosOn   = false
+  Log            = true
+  PingInterval   = 100
+  highestDoneKey = "highestDone"
 )
 
 type Paxos struct {
@@ -74,10 +76,11 @@ func sleepRand() {
   time.Sleep(time.Duration(rand.Int()%100) * time.Millisecond)
 }
 
-func (px *Paxos) n() int64 {
+func (px *Paxos) n() int64 { //proposal number generator
   return time.Now().UnixNano()*int64(len(px.peers)) + int64(px.me)
 }
 
+//log function
 func (px *Paxos) x(format string, a ...interface{}) (n int, err error) {
   if Log {
     n, err = fmt.Printf(px.shortAddr()+": "+format+"\n", a...)
@@ -183,6 +186,8 @@ func (px *Paxos) Prepare(args *PrepareArgs, reply *PrepareReply) error {
   it := px.getInstance(args.Seq)
   if args.N > it.prepareN {
     it.prepareN = args.N
+    px.pdb.Put(args.Seq, it)
+
     reply.Err = OK
     reply.HighestDoneSeq = px.highestDone // piggyback
     if it.acceptedN != -1 {
@@ -202,6 +207,7 @@ func (px *Paxos) Accept(args *AcceptArgs, reply *AcceptReply) error {
     it.prepareN = args.N
     it.acceptedN = args.N
     it.acceptedVal = args.Val
+    px.pdb.Put(args.Seq, it)
 
     reply.Err = OK
     reply.N = args.N
@@ -216,6 +222,7 @@ func (px *Paxos) Accept(args *AcceptArgs, reply *AcceptReply) error {
 func (px *Paxos) Decided(args *DecidedArgs, reply *DecidedReply) error {
   it := px.getInstance(args.Seq)
   it.decidedVal = args.Val
+  px.pdb.Put(args.Seq, it)
 
   reply.Err = OK
   reply.HighestDoneSeq = px.highestDone // piggyback
@@ -367,6 +374,7 @@ func (px *Paxos) Startpls(args *StartArgs, reply *StartReply) error {
 func (px *Paxos) Done(seq int) {
   if seq > px.highestDone {
     px.highestDone = seq
+    px.pdb.Put(highestDoneKey, px.highestDone)
   }
 }
 
@@ -552,12 +560,23 @@ func (px *Paxos) Pusher() {
   }
 }
 
+func (px *Paxos) tryRecovery() {
+  px.pdb.Get(highestDoneKey, &px.highestDone)
+  instance := Instance{}
+  num := -1
+  for px.pdb.Get(num+1, &instance) {
+    num += 1
+    px.log[num] = &instance
+    instance = Instance{}
+  }
+}
+
 //
 // the application wants to create a paxos peer.
 // the ports of all the paxos peers (including this one)
 // are in peers[]. this servers port is peers[me].
 //
-func Make(peers []string, me int, rpcs *rpc.Server) *Paxos {
+func Make(peers []string, me int, rpcs *rpc.Server, db *leveldb.DB) *Paxos {
   px := &Paxos{}
   px.peers = peers
   px.me = me
@@ -566,13 +585,13 @@ func Make(peers []string, me int, rpcs *rpc.Server) *Paxos {
   px.highestDone = -1
   px.highestDoneAll = -1
   px.peerTracker = make([]int, len(peers))
+  px.log = make(map[int]*Instance)
 
   ///////////////////////////////////
   // start the PDB
   ///////////////////////////////////
-  // px.pdb = pdb.Make()
-
-  px.log = make(map[int]*Instance)
+  px.pdb = pdb.StartDB(db, px.addr)
+  px.tryRecovery()
 
   if MultiPaxosOn {
     go px.Tick()

@@ -18,7 +18,6 @@ import "messagebroker"
 
 import leveldb "github.com/syndtr/goleveldb/leveldb"
 
-var _ = leveldb.OpenFile
 
 const (
   ServerLog           = false
@@ -599,7 +598,7 @@ func (kv *ShardKV) Kill() {
 func StartServer(gid int64,
   shardmasters []string,
   servers []string, me int,
-  messagebrokers []string) *ShardKV {
+  messagebrokers []string, db *leveldb.DB) *ShardKV {
   gob.Register(Op{})
   gob.Register(PutArgs{})
   gob.Register(GetArgs{})
@@ -624,7 +623,7 @@ func StartServer(gid int64,
   rpcs := rpc.NewServer()
   rpcs.Register(kv)
 
-  kv.px = paxos.Make(servers, me, rpcs)
+  kv.px = paxos.Make(servers, me, rpcs, db)
 
   os.Remove(servers[me])
   l, e := net.Listen("unix", servers[me])

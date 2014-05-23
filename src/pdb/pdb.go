@@ -6,12 +6,11 @@ import (
   leveldb "github.com/syndtr/goleveldb/leveldb"
   opt "github.com/syndtr/goleveldb/leveldb/opt"
   "log"
-  "os"
+  // "os"
+  "fmt"
 )
 
-const (
-  DB_PATH = "data"
-)
+var _ = fmt.Println
 
 // Wrapper around levelDB
 // Interface:
@@ -28,7 +27,8 @@ const (
 // uh oh!
 
 type PDB struct {
-  db leveldb.DB
+  DB     leveldb.DB
+  prefix string
 }
 
 // LevelDB commands
@@ -36,8 +36,9 @@ type PDB struct {
 // err = db.Put([]byte("key"), []byte("value"), nil)
 // err = db.Delete([]byte("key"), nil)
 
-func getKeyBytes(vals ...interface{}) []byte {
+func (pdb *PDB) getKeyBytes(vals ...interface{}) []byte {
   ans := make([]byte, 0)
+  ans = append(ans, getBytes(pdb.prefix)...)
   for _, val := range vals {
     ans = append(ans, getBytes(val)...)
   }
@@ -60,7 +61,7 @@ func (pdb *PDB) Put(keyval ...interface{}) {
   }
   key := keyval[:len(keyval)-1]
   value := keyval[len(keyval)-1]
-  err := pdb.db.Put(getKeyBytes(key...), getBytes(value), &opt.WriteOptions{true})
+  err := pdb.DB.Put(pdb.getKeyBytes(key...), getBytes(value), &opt.WriteOptions{Sync: false})
   if err != nil {
     log.Fatal("Put to db failed:", err)
   }
@@ -72,7 +73,7 @@ func (pdb *PDB) Get(keyval ...interface{}) bool {
   }
   key := keyval[:len(keyval)-1]
   value := keyval[len(keyval)-1]
-  data, err := pdb.db.Get(getKeyBytes(key...), nil)
+  data, err := pdb.DB.Get(pdb.getKeyBytes(key...), nil)
   if err == leveldb.ErrNotFound {
     return false
   }
@@ -84,32 +85,9 @@ func (pdb *PDB) Get(keyval ...interface{}) bool {
   return true
 }
 
-func Make() *PDB {
+func StartDB(database *leveldb.DB, prefix string) *PDB {
   pdb := &PDB{}
-  pdb.open()
+  pdb.DB = *database
+  pdb.prefix = prefix
   return pdb
-}
-
-func (pdb *PDB) open() {
-  db, err := leveldb.OpenFile(DB_PATH, nil)
-  if err != nil {
-    log.Fatalf("Error opening db! %s\n", err)
-  }
-  pdb.db = *db
-}
-
-func (pdb *PDB) Close() {
-  pdb.db.Close()
-} //doesn't work!
-
-func Delete() {
-  os.RemoveAll(DB_PATH) //careful!
-}
-
-func (pdb *PDB) Recover() {
-  db, err := leveldb.RecoverFile(DB_PATH, nil)
-  pdb.db = *db
-  if err != nil {
-    log.Fatal("Error recovering db!", err)
-  }
 }

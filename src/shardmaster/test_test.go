@@ -8,6 +8,27 @@ import "os"
 // import "time"
 import "fmt"
 import "math/rand"
+import leveldb "github.com/syndtr/goleveldb/leveldb"
+
+const DB_PATH = "/var/tmp/db/"
+var db *leveldb.DB
+
+func setupDB() {
+  if db != nil {
+    return
+  }
+  name := "dummy.db"
+  deleteDB(name)
+  var err error
+  db, err = leveldb.OpenFile(DB_PATH+name, nil)
+  if err != nil {
+    fmt.Printf("Error opening db! %s\n", err)
+  }
+}
+
+func deleteDB(name string) {
+  os.RemoveAll(DB_PATH + name)
+}
 
 func port(tag string, host int) string {
   s := "/var/tmp/824-"
@@ -84,11 +105,13 @@ func TestBasic(t *testing.T) {
   var kvh []string = make([]string, nservers)
   defer cleanup(sma)
 
+  setupDB()
+
   for i := 0; i < nservers; i++ {
     kvh[i] = port("basic", i)
   }
   for i := 0; i < nservers; i++ {
-    sma[i] = StartServer(kvh, i)
+    sma[i] = StartServer(kvh, i, db)
   }
 
   ck := MakeClerk(kvh)
@@ -292,11 +315,13 @@ func TestUnreliable(t *testing.T) {
   var kvh []string = make([]string, nservers)
   defer cleanup(sma)
 
+  setupDB()
+
   for i := 0; i < nservers; i++ {
     kvh[i] = port("unrel", i)
   }
   for i := 0; i < nservers; i++ {
-    sma[i] = StartServer(kvh, i)
+    sma[i] = StartServer(kvh, i, db)
     // don't turn on unreliable because the assignment
     // doesn't require the shardmaster to detect duplicate
     // client requests.
@@ -343,11 +368,13 @@ func TestFreshQuery(t *testing.T) {
   var kvh []string = make([]string, nservers)
   defer cleanup(sma)
 
+  setupDB()
+
   for i := 0; i < nservers; i++ {
     kvh[i] = port("fresh", i)
   }
   for i := 0; i < nservers; i++ {
-    sma[i] = StartServer(kvh, i)
+    sma[i] = StartServer(kvh, i, db)
   }
 
   ck1 := MakeClerk([]string{kvh[1]})
